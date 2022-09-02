@@ -71,7 +71,7 @@ impl chainsync::Observer<chainsync::BlockContent> for ChainObserver {
                 .expect("required block not found in memory");
 
             self.output
-                .send(model::RawBlockPayload::roll_forward(block))?;
+                .send(model::RawBlockPayload::roll_forward(block, tip.clone()))?;
             self.block_count.inc(1);
             
             // evaluate if we should finalize the thread according to config

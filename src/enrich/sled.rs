@@ -230,7 +230,7 @@ impl gasket::runtime::Worker for Worker {
         let msg = self.input.recv_or_idle()?;
 
         match msg.payload {
-            model::RawBlockPayload::RollForward(cbor) => {
+            model::RawBlockPayload::RollForward(cbor, chain_tip) => {
                 let block = MultiEraBlock::decode(&cbor)
                     .map_err(crate::Error::cbor)
                     .apply_policy(&self.policy)
@@ -255,7 +255,7 @@ impl gasket::runtime::Worker for Worker {
                 let keys = ctx.get_all_keys();
 
                 self.output
-                    .send(model::EnrichedBlockPayload::roll_forward(cbor, ctx))?;
+                    .send(model::EnrichedBlockPayload::roll_forward(cbor, ctx, chain_tip))?;
 
                 self.remove_consumed_utxos(db, keys).or_restart()?;
 

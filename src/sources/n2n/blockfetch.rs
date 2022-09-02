@@ -1,4 +1,4 @@
-use pallas::network::miniprotocols::{blockfetch, run_agent, Point};
+use pallas::network::miniprotocols::{blockfetch, run_agent, Point, chainsync::Tip};
 
 use gasket::{error::*, runtime::WorkOutcome};
 
@@ -7,11 +7,12 @@ use crate::{crosscut, model::RawBlockPayload};
 
 struct Observer<'a> {
     output: &'a mut OutputPort,
+    chain_tip: Tip
 }
 
 impl<'a> blockfetch::Observer for Observer<'a> {
     fn on_block_received(&mut self, body: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
-        self.output.send(RawBlockPayload::roll_forward(body))?;
+        self.output.send(RawBlockPayload::roll_forward(body, self.chain_tip.clone()))?;
 
         Ok(())
     }
@@ -46,11 +47,12 @@ impl Worker {
         }
     }
 
-    fn fetch_block(&mut self, point: Point) -> Result<(), Error> {
+    fn fetch_block(&mut self, point: Point, chain_tip: Tip) -> Result<(), Error> {
         log::debug!("initiating chainsync");
 
         let observer = Observer {
             output: &mut self.output,
+            chain_tip
         };
 
         let mut transport = self.transport.take().unwrap();
@@ -83,8 +85,8 @@ impl gasket::runtime::Worker for Worker {
         let input = self.input.recv_or_idle()?;
 
         match input.payload {
-            ChainSyncInternalPayload::RollForward(point) => {
-                self.fetch_block(point)?;
+            ChainSyncInternalPayload::RollForward(point, chain_tip) => {
+                self.fetch_block(point, chain_tip)?;
             }
             ChainSyncInternalPayload::RollBack(point) => {
                 self.output.send(RawBlockPayload::roll_back(point))?;

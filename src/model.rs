@@ -2,21 +2,21 @@ use std::{collections::HashMap, fmt::Debug};
 
 use pallas::{
     ledger::traverse::{Era, MultiEraBlock, MultiEraOutput, OutputRef},
-    network::miniprotocols::Point,
+    network::miniprotocols::{Point, chainsync::Tip},
 };
 
 use crate::Error;
 
 #[derive(Debug, Clone)]
 pub enum RawBlockPayload {
-    RollForward(Vec<u8>),
+    RollForward(Vec<u8>, Tip),
     RollBack(Point),
 }
 
 impl RawBlockPayload {
-    pub fn roll_forward(block: Vec<u8>) -> gasket::messaging::Message<Self> {
+    pub fn roll_forward(block: Vec<u8>, chain_tip: Tip) -> gasket::messaging::Message<Self> {
         gasket::messaging::Message {
-            payload: Self::RollForward(block),
+            payload: Self::RollForward(block, chain_tip),
         }
     }
 
@@ -53,14 +53,14 @@ impl BlockContext {
 
 #[derive(Debug, Clone)]
 pub enum EnrichedBlockPayload {
-    RollForward(Vec<u8>, BlockContext),
+    RollForward(Vec<u8>, BlockContext, Tip),
     RollBack(Point),
 }
 
 impl EnrichedBlockPayload {
-    pub fn roll_forward(block: Vec<u8>, ctx: BlockContext) -> gasket::messaging::Message<Self> {
+    pub fn roll_forward(block: Vec<u8>, ctx: BlockContext, chain_tip: Tip) -> gasket::messaging::Message<Self> {
         gasket::messaging::Message {
-            payload: Self::RollForward(block, ctx),
+            payload: Self::RollForward(block, ctx, chain_tip),
         }
     }
 
@@ -109,7 +109,7 @@ pub enum CRDTCommand {
     AnyWriteWins(Key, Value),
     // TODO make sure Value is a generic not stringly typed
     PNCounter(Key, Delta),
-    BlockFinished(Point, Height),
+    BlockFinished(Point, Height, Tip),
 }
 
 impl CRDTCommand {
@@ -168,11 +168,11 @@ impl CRDTCommand {
         CRDTCommand::LastWriteWins(key, value.into(), ts)
     }
 
-    pub fn block_finished(block: &MultiEraBlock) -> CRDTCommand {
+    pub fn block_finished(block: &MultiEraBlock, chain_tip: Tip) -> CRDTCommand {
         let hash = block.hash();
         let slot = block.slot();
         let height = block.number();
         let point = Point::Specific(slot, hash.to_vec());
-        CRDTCommand::BlockFinished(point, height)
+        CRDTCommand::BlockFinished(point, height, chain_tip)
     }
 }

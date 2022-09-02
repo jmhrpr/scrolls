@@ -1,4 +1,5 @@
 use pallas::ledger::traverse::MultiEraBlock;
+use pallas::network::miniprotocols::chainsync::Tip;
 
 use crate::{crosscut, model, prelude::*};
 
@@ -37,6 +38,7 @@ impl Worker {
         &mut self,
         block: &'b [u8],
         ctx: &model::BlockContext,
+        chain_tip: Tip,
     ) -> Result<(), gasket::error::Error> {
         let block = MultiEraBlock::decode(block)
             .map_err(crate::Error::cbor)
@@ -60,7 +62,7 @@ impl Worker {
         }
 
         self.output.send(gasket::messaging::Message::from(
-            model::CRDTCommand::block_finished(&block),
+            model::CRDTCommand::block_finished(&block, chain_tip.clone()),
         ))?;
 
         Ok(())
@@ -79,8 +81,8 @@ impl gasket::runtime::Worker for Worker {
         let msg = self.input.recv_or_idle()?;
 
         match msg.payload {
-            model::EnrichedBlockPayload::RollForward(block, ctx) => {
-                self.reduce_block(&block, &ctx)?
+            model::EnrichedBlockPayload::RollForward(block, ctx, chain_tip) => {
+                self.reduce_block(&block, &ctx, chain_tip)?
             }
             model::EnrichedBlockPayload::RollBack(point) => {
                 log::warn!("rollback requested for {:?}", point);

@@ -71,7 +71,7 @@ impl chainsync::Observer<chainsync::HeaderContent> for ChainObserver {
         for point in ready {
             log::debug!("requesting block fetch for point {:?}", point);
             self.output
-                .send(ChainSyncInternalPayload::roll_forward(point.clone()))?;
+                .send(ChainSyncInternalPayload::roll_forward(point.clone(), tip.clone()))?;
             self.block_count.inc(1);
 
             // evaluate if we should finalize the thread according to config

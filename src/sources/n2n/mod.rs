@@ -6,21 +6,21 @@ use std::time::Duration;
 
 use gasket::messaging::{InputPort, OutputPort};
 
-use pallas::network::miniprotocols::Point;
+use pallas::network::miniprotocols::{Point, chainsync::Tip};
 use serde::Deserialize;
 
 use crate::{bootstrap, crosscut, model, storage};
 
 #[derive(Debug)]
 pub enum ChainSyncInternalPayload {
-    RollForward(Point),
+    RollForward(Point, Tip),
     RollBack(Point),
 }
 
 impl ChainSyncInternalPayload {
-    pub fn roll_forward(point: Point) -> gasket::messaging::Message<Self> {
+    pub fn roll_forward(point: Point, chain_tip: Tip) -> gasket::messaging::Message<Self> {
         gasket::messaging::Message {
-            payload: Self::RollForward(point),
+            payload: Self::RollForward(point, chain_tip),
         }
     }
 

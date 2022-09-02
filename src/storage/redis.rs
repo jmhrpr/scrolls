@@ -195,7 +195,7 @@ impl gasket::runtime::Worker for Worker {
                     .incr(key, value)
                     .or_restart()?;
             }
-            model::CRDTCommand::BlockFinished(point, height) => {
+            model::CRDTCommand::BlockFinished(point, height, chain_tip) => {
                 let cursor_str = crosscut::PointArg::from(point).to_string();
 
                 let cursor_str = format!("{},{}", cursor_str, height);
@@ -206,7 +206,19 @@ impl gasket::runtime::Worker for Worker {
                     .set("_cursor", &cursor_str)
                     .or_restart()?;
 
-                log::info!("new cursor saved to redis {}", &cursor_str)
+                log::info!("new cursor saved to redis {}", &cursor_str);
+                
+                let tip_str = crosscut::PointArg::from(chain_tip.0).to_string();
+                
+                let tip_str = format!("{},{}", tip_str, chain_tip.1);
+                
+                self.connection
+                    .as_mut()
+                    .unwrap()
+                    .set("_chaintip", &tip_str)
+                    .or_restart()?;
+                    
+                log::info!("new chaintip saved to redis {}", &tip_str);
             }
         };
 
