@@ -123,7 +123,10 @@ impl gasket::runtime::Worker for Worker {
 
         match msg.payload {
             model::CRDTCommand::BlockStarting(_) => {
-                // TODO: start transaction
+                // start redis transaction
+                redis::cmd("MULTI")
+                    .query(self.connection.as_mut().unwrap())
+                    .or_restart()?;
             }
             model::CRDTCommand::GrowOnlySetAdd(key, value) => {
                 self.connection
@@ -219,6 +222,11 @@ impl gasket::runtime::Worker for Worker {
                     .or_restart()?;
                     
                 log::info!("new chaintip saved to redis {}", &tip_str);
+                
+                // end redis transaction
+                redis::cmd("EXEC")
+                    .query(self.connection.as_mut().unwrap())
+                    .or_restart()?;
             }
         };
 
