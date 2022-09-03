@@ -34,9 +34,14 @@ impl AddressPattern {
             }
         }
 
-        if let Some(_) = &self.payment_hex {
-            // we need hex methods in Pallas addresses
-            todo!();
+        if let Some(x) = &self.payment_hex {
+            if let Address::Shelley(ref a) = addr {
+                let payment_hex = hex::encode(a.payment().to_vec());
+                
+                if payment_hex.eq(x) {
+                    return true;
+                }
+            }
         }
 
         if let Some(_) = &self.payment_bech32 {
