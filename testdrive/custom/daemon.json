@@ -1,0 +1,36 @@
+{
+    "source": {
+        "type": "N2N",
+        "address": "relays-new.cardano-mainnet.iohk.io:3001"
+    },
+    "reducers": [
+        {
+          "type": "TxByHash",
+          "key_prefix": "c1",
+          "filter": {
+            "transaction": {
+                "mint_policy_id_hex": "f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a",
+                "mint_asset_name_hex": "6164616d616e74"
+            }
+        }
+      }
+    ],
+    "storage": {
+        "type": "Redis",
+        "connection_params": "redis://localhost:6379"
+    },
+    "intersect": {
+        "type": "Point",
+        "value": [55718873, "57c5dda2865b8568e6f4d92bb3dcbd306c269911300b7166f607f8a6ec18ba39"]
+    },
+    "chain": {
+        "type": "Mainnet"
+    },
+    "policy": {
+        "missing_data": "Skip"
+    },
+    "enrich": {
+        "type": "Sled",
+        "db_path": "/tmp/sled_db"
+    }
+}
