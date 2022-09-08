@@ -25,8 +25,11 @@ pub mod tx_by_hash;
 pub mod tx_count_by_address;
 #[cfg(feature = "unstable")]
 pub mod block_header_by_hash;
+
 #[cfg(feature = "unstable")]
 pub mod admnt_payments_by_address;
+#[cfg(feature = "unstable")]
+pub mod admnt_block_height_by_hash;
 
 #[derive(Deserialize)]
 #[serde(tag = "type")]
@@ -48,6 +51,8 @@ pub enum Config {
 
     #[cfg(feature = "unstable")]
     AdmntPaymentsByAddress(admnt_payments_by_address::Config),
+    #[cfg(feature = "unstable")]
+    AdmntBlockHeightByHash(admnt_block_height_by_hash::Config),
 }
 
 impl Config {
@@ -70,6 +75,8 @@ impl Config {
 
             #[cfg(feature = "unstable")]
             Config::AdmntPaymentsByAddress(c) => c.plugin(),
+            #[cfg(feature = "unstable")]
+            Config::AdmntBlockHeightByHash(c) => c.plugin(policy),
         }
     }
 }
@@ -130,6 +137,8 @@ pub enum Reducer {
 
     #[cfg(feature = "unstable")]
     AdmntPaymentsByAddress(admnt_payments_by_address::Reducer),
+    #[cfg(feature = "unstable")]
+    AdmntBlockHeightByHash(admnt_block_height_by_hash::Reducer),
 }
 
 impl Reducer {
@@ -157,6 +166,8 @@ impl Reducer {
 
             #[cfg(feature = "unstable")]
             Reducer::AdmntPaymentsByAddress(x) => x.reduce_block(block, output),
+            #[cfg(feature = "unstable")]
+            Reducer::AdmntBlockHeightByHash(x) => x.reduce_block(block, ctx, output),
         }
     }
 }
