@@ -2,7 +2,6 @@ use pallas::ledger::{
     addresses::Address,
     traverse::{MultiEraBlock, MultiEraTx, MultiEraMint},
 };
-use pallas::codec::minicbor::bytes::ByteVec;
 use pallas::crypto::hash::Hash;
 use serde::Deserialize;
 
