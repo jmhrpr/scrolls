@@ -25,6 +25,8 @@ pub mod tx_by_hash;
 pub mod tx_count_by_address;
 #[cfg(feature = "unstable")]
 pub mod block_header_by_hash;
+#[cfg(feature = "unstable")]
+pub mod admnt_payments_by_address;
 
 #[derive(Deserialize)]
 #[serde(tag = "type")]
@@ -43,6 +45,9 @@ pub enum Config {
     TxCountByAddress(tx_count_by_address::Config),
     #[cfg(feature = "unstable")]
     BlockHeaderByHash(block_header_by_hash::Config),
+
+    #[cfg(feature = "unstable")]
+    AdmntPaymentsByAddress(admnt_payments_by_address::Config),
 }
 
 impl Config {
@@ -62,6 +67,9 @@ impl Config {
             Config::TxCountByAddress(c) => c.plugin(policy),
             #[cfg(feature = "unstable")]
             Config::BlockHeaderByHash(c) => c.plugin(policy),
+
+            #[cfg(feature = "unstable")]
+            Config::AdmntPaymentsByAddress(c) => c.plugin(),
         }
     }
 }
@@ -119,6 +127,9 @@ pub enum Reducer {
     TxCountByAddress(tx_count_by_address::Reducer),
     #[cfg(feature = "unstable")]
     BlockHeaderByHash(block_header_by_hash::Reducer),
+
+    #[cfg(feature = "unstable")]
+    AdmntPaymentsByAddress(admnt_payments_by_address::Reducer),
 }
 
 impl Reducer {
@@ -143,6 +154,9 @@ impl Reducer {
             Reducer::TxCountByAddress(x) => x.reduce_block(block, ctx, output),
             #[cfg(feature = "unstable")]
             Reducer::BlockHeaderByHash(x) => x.reduce_block(block, ctx, output),
+
+            #[cfg(feature = "unstable")]
+            Reducer::AdmntPaymentsByAddress(x) => x.reduce_block(block, output),
         }
     }
 }
