@@ -30,6 +30,8 @@ pub mod block_header_by_hash;
 pub mod admnt_payments_by_address;
 #[cfg(feature = "unstable")]
 pub mod admnt_block_height_by_hash;
+#[cfg(feature = "unstable")]
+pub mod admnt_mint_tx_by_asset;
 
 #[derive(Deserialize)]
 #[serde(tag = "type")]
@@ -53,6 +55,8 @@ pub enum Config {
     AdmntPaymentsByAddress(admnt_payments_by_address::Config),
     #[cfg(feature = "unstable")]
     AdmntBlockHeightByHash(admnt_block_height_by_hash::Config),
+    #[cfg(feature = "unstable")]
+    AdmntMintTxByAsset(admnt_mint_tx_by_asset::Config),
 }
 
 impl Config {
@@ -77,6 +81,8 @@ impl Config {
             Config::AdmntPaymentsByAddress(c) => c.plugin(),
             #[cfg(feature = "unstable")]
             Config::AdmntBlockHeightByHash(c) => c.plugin(policy),
+            #[cfg(feature = "unstable")]
+            Config::AdmntMintTxByAsset(c) => c.plugin(),
         }
     }
 }
@@ -139,6 +145,8 @@ pub enum Reducer {
     AdmntPaymentsByAddress(admnt_payments_by_address::Reducer),
     #[cfg(feature = "unstable")]
     AdmntBlockHeightByHash(admnt_block_height_by_hash::Reducer),
+    #[cfg(feature = "unstable")]
+    AdmntMintTxByAsset(admnt_mint_tx_by_asset::Reducer),
 }
 
 impl Reducer {
@@ -168,6 +176,8 @@ impl Reducer {
             Reducer::AdmntPaymentsByAddress(x) => x.reduce_block(block, output),
             #[cfg(feature = "unstable")]
             Reducer::AdmntBlockHeightByHash(x) => x.reduce_block(block, ctx, output),
+            #[cfg(feature = "unstable")]
+            Reducer::AdmntMintTxByAsset(x) => x.reduce_block(block, output),
         }
     }
 }
