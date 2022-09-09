@@ -34,6 +34,8 @@ pub mod admnt_block_height_by_hash;
 pub mod admnt_mint_tx_by_asset;
 #[cfg(feature = "unstable")]
 pub mod admnt_utxos_by_address;
+#[cfg(feature = "unstable")]
+pub mod admnt_coin_balance_by_address;
 
 #[derive(Deserialize)]
 #[serde(tag = "type")]
@@ -61,6 +63,8 @@ pub enum Config {
     AdmntMintTxByAsset(admnt_mint_tx_by_asset::Config),
     #[cfg(feature = "unstable")]
     AdmntUtxosByAddress(admnt_utxos_by_address::Config),
+    #[cfg(feature = "unstable")]
+    AdmntCoinBalanceByAddress(admnt_coin_balance_by_address::Config),
 }
 
 impl Config {
@@ -89,6 +93,8 @@ impl Config {
             Config::AdmntMintTxByAsset(c) => c.plugin(),
             #[cfg(feature = "unstable")]
             Config::AdmntUtxosByAddress(c) => c.plugin(policy),
+            #[cfg(feature = "unstable")]
+            Config::AdmntCoinBalanceByAddress(c) => c.plugin(policy),
         }
     }
 }
@@ -155,6 +161,8 @@ pub enum Reducer {
     AdmntMintTxByAsset(admnt_mint_tx_by_asset::Reducer),
     #[cfg(feature = "unstable")]
     AdmntUtxosByAddress(admnt_utxos_by_address::Reducer),
+    #[cfg(feature = "unstable")]
+    AdmntCoinBalanceByAddress(admnt_coin_balance_by_address::Reducer),
 }
 
 impl Reducer {
@@ -188,6 +196,8 @@ impl Reducer {
             Reducer::AdmntMintTxByAsset(x) => x.reduce_block(block, output),
             #[cfg(feature = "unstable")]
             Reducer::AdmntUtxosByAddress(x) => x.reduce_block(block, ctx, output),
+            #[cfg(feature = "unstable")]
+            Reducer::AdmntCoinBalanceByAddress(x) => x.reduce_block(block, ctx, output),
         }
     }
 }
