@@ -5,15 +5,34 @@
     },
     "reducers": [
         {
-          "type": "TxByHash",
-          "key_prefix": "c1",
-          "filter": {
-            "transaction": {
-                "mint_policy_id_hex": "f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a",
-                "mint_asset_name_hex": "6164616d616e74"
+            "type": "AdmntPaymentsByAddress",
+            "key_prefix": "c1",
+            "payment_vkh": "addr_vkh1wdkle2sprqsuklt34474g6n4ps7k6pv6zwe4644uxmg7xj54y87"
+        },
+        {
+            "type": "AdmntBlockHeightByHash",
+            "key_prefix": "c2",
+            "filter": {
+                "output_address": {
+                    "payment_bech32": "addr_vkh1wdkle2sprqsuklt34474g6n4ps7k6pv6zwe4644uxmg7xj54y87"
+                }
             }
+        },
+        {
+            "type": "AdmntMintTxByAsset",
+            "key_prefix": "c3",
+            "nft_policy": "f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9b"
+        },
+        {
+            "type": "AdmntUtxosByAddress",
+            "key_prefix": "c4",
+            "payment_bech32": ["addr_vkh1gtxc85pa7ral3zmm3xd80eq4khel6g37eyvakflhalsdkswdr87"]
+        },
+        {
+            "type": "AdmntCoinBalanceByAddress",
+            "key_prefix": "c5",
+            "payment_bech32": ["addr_vkh1gtxc85pa7ral3zmm3xd80eq4khel6g37eyvakflhalsdkswdr87"]
         }
-      }
     ],
     "storage": {
         "type": "Redis",
@@ -33,4 +52,4 @@
         "type": "Sled",
         "db_path": "/tmp/sled_db"
     }
-}
+  }

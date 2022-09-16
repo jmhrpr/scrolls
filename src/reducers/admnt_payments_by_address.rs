@@ -117,11 +117,10 @@ impl Reducer {
             );
 
             // add to an ordered set, entries ordered by height
-            let crdt = model::CRDTCommand::last_write_wins(
+            let crdt = model::CRDTCommand::set_add(
                 self.config.key_prefix.as_deref(),
                 address,
                 value_str,
-                block.number(),
             );
 
             output.send(crdt.into())?;
