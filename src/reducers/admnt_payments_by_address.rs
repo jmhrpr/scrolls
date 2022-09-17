@@ -4,11 +4,11 @@
 
 KEY:    <prefix>.<base_address>
 
-VALUE:  sorted set ("txhash,lovelace,credit,block_hash,block_height,block_slot", height)
+VALUE:  set of JSON map (tx_hash, lovelace, credit_used, block_hash, b_height, b_slot)
   where
     txhash: hex string of transaction hash of tx containing the payment/the payment tx
     lovelace: total amount of lovelace received by base_address in the tx
-    credit: 'T' if credit token configured AND at least 1 received in tx, 'F' otherwise
+    credit: bool, true if credit token configured AND at least 1 received in tx
     block_hash: block hash of block which contained the tx
 
 CONFIG: payment_vkh: bech32 encoding of the payment key used in all payment addresses
@@ -57,7 +57,7 @@ use pallas::ledger::primitives::babbage::Value;
 use pallas::ledger::traverse::{MultiEraBlock, MultiEraTx};
 use pallas::crypto::hash::Hash;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{model, prelude::*};
 
@@ -70,6 +70,16 @@ pub struct Config {
 
 pub struct Reducer {
     config: Config,
+}
+
+#[derive(Serialize)]
+pub struct AdmntPayment {
+    tx_hash: String,
+    lovelace: u64,
+    credit_used: bool,
+    block_hash: String,
+    block_height: u64,
+    block_slot: u64,
 }
 
 impl Reducer {
@@ -107,14 +117,14 @@ impl Reducer {
 
         // send CRDT messages for all order payment addresses found tx
         for (address, &(amount, credit)) in addr_map.iter() {
-            let value_str = format!("{},{},{},{},{},{}",
-                tx.hash(),
-                amount,
-                if credit {"T"} else {"F"},
-                block.hash(),
-                block.number(),
-                block.slot()
-            );
+            let value_str = serde_json::to_string(&AdmntPayment {
+                tx_hash: tx.hash().to_string(),
+                lovelace: amount,
+                credit_used: credit,
+                block_hash: block.hash().to_string(),
+                block_height: block.number(),
+                block_slot: block.slot(),
+            }).or_panic()?;
 
             // add to an ordered set, entries ordered by height
             let crdt = model::CRDTCommand::set_add(
