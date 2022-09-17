@@ -6,7 +6,7 @@ use gasket::{
 };
 
 use redis::{Commands, ToRedisArgs};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{bootstrap, crosscut, model};
 
@@ -22,6 +22,13 @@ impl ToRedisArgs for model::Value {
             model::Value::Cbor(x) => x.write_redis_args(out),
         }
     }
+}
+
+#[derive(Serialize)]
+struct ChainTip {
+    slot: u64,
+    block_hash: String,
+    block_height: u64,
 }
 
 #[derive(Deserialize, Clone)]
@@ -202,7 +209,7 @@ impl gasket::runtime::Worker for Worker {
                 let cursor_str = crosscut::PointArg::from(point).to_string();
 
                 let cursor_str = format!("{},{}", cursor_str, height);
-                
+
                 self.connection
                     .as_mut()
                     .unwrap()
@@ -210,19 +217,27 @@ impl gasket::runtime::Worker for Worker {
                     .or_restart()?;
 
                 log::info!("new cursor saved to redis {}", &cursor_str);
-                
-                let tip_str = crosscut::PointArg::from(chain_tip.0).to_string();
-                
-                let tip_str = format!("{},{}", tip_str, chain_tip.1);
-                
-                self.connection
+
+                let point = crosscut::PointArg::from(chain_tip.0);
+
+                if let crosscut::PointArg::Specific(s, h) = point {
+                    let tip_str = serde_json::to_string(&ChainTip {
+                        slot: s,
+                        block_hash: h,
+                        block_height: chain_tip.1,
+                    }).or_panic()?;
+
+                    self.connection
                     .as_mut()
                     .unwrap()
                     .set("_chaintip", &tip_str)
                     .or_restart()?;
-                    
-                log::info!("new chaintip saved to redis {}", &tip_str);
-                
+
+                    self.ops_count.inc(1);
+
+                    log::info!("chaintip saved to redis {}", &tip_str);
+                }
+
                 // end redis transaction
                 redis::cmd("EXEC")
                     .query(self.connection.as_mut().unwrap())
