@@ -21,17 +21,17 @@
         {
             "type": "AdmntMintTxByAsset",
             "key_prefix": "c3",
-            "nft_policy": "f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9b"
+            "nft_policy": "f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a"
         },
         {
             "type": "AdmntUtxosByAddress",
             "key_prefix": "c4",
-            "payment_bech32": ["addr_vkh1gtxc85pa7ral3zmm3xd80eq4khel6g37eyvakflhalsdkswdr87"]
+            "payment_bech32": ["addr_vkh1wdkle2sprqsuklt34474g6n4ps7k6pv6zwe4644uxmg7xj54y87"]
         },
         {
             "type": "AdmntCoinBalanceByAddress",
             "key_prefix": "c5",
-            "payment_bech32": ["addr_vkh1gtxc85pa7ral3zmm3xd80eq4khel6g37eyvakflhalsdkswdr87"]
+            "payment_bech32": ["addr_vkh1wdkle2sprqsuklt34474g6n4ps7k6pv6zwe4644uxmg7xj54y87"]
         }
     ],
     "storage": {
