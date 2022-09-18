@@ -24,10 +24,13 @@ payment tx or NFT mint.
 
 Do we really need this or can we just use block heights stored in other collections?
 
+TODO we need to remove rollbacked blocks
+
 */
 
 use pallas::ledger::traverse::MultiEraBlock;
-use serde::Deserialize;
+use serde::de::value;
+use serde::{Deserialize, Serialize};
 
 use crate::prelude::*;
 use crate::{crosscut, model};
@@ -43,6 +46,12 @@ pub struct Reducer {
     policy: crosscut::policies::RuntimePolicy,
 }
 
+#[derive(Serialize)]
+pub struct AdmntBlockHeight {
+    height: u64,
+    slot: u64,
+}
+
 impl Reducer {
     pub fn reduce_block<'b>(
         &mut self,
@@ -51,12 +60,15 @@ impl Reducer {
         output: &mut super::OutputPort,
     ) -> Result<(), gasket::error::Error> {
         if filter_matches_block!(self, block, ctx) {
-            let height_str = format!("{},{}", block.number(), block.slot());
+            let value_str = serde_json::to_string(&AdmntBlockHeight {
+                height: block.number(),
+                slot: block.slot()
+            }).or_panic()?;
 
             let crdt = model::CRDTCommand::any_write_wins(
                 self.config.key_prefix.as_deref(),
                 block.hash(),
-                height_str,
+                value_str,
             );
 
             output.send(gasket::messaging::Message::from(crdt))?;

@@ -42,7 +42,7 @@ use gasket::error::AsWorkError;
 use pallas::ledger::traverse::{MultiEraBlock, MultiEraTx, MultiEraMint};
 use pallas::crypto::hash::Hash;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::model;
 
@@ -54,6 +54,14 @@ pub struct Config {
 
 pub struct Reducer {
     config: Config,
+}
+
+#[derive(Serialize)]
+pub struct AdmntMintTx {
+    tx_hash: String,
+    block_hash: String,
+    height: u64,
+    slot: u64,
 }
 
 impl Reducer {
@@ -75,12 +83,12 @@ impl Reducer {
                             asset_name = String::from("royalty");
                         }
 
-                        let value_str = format!("{},{},{},{}",
-                            tx.hash(),
-                            block.hash(),
-                            block.number(),
-                            block.slot()
-                        );
+                        let value_str = serde_json::to_string(&AdmntMintTx {
+                            tx_hash: tx.hash().to_string(),
+                            block_hash: block.hash().to_string(),
+                            height: block.number(),
+                            slot: block.slot(),
+                        }).or_panic()?;
 
                         // add to an ordered set, entries ordered by height
                         let crdt = model::CRDTCommand::any_write_wins(

@@ -26,8 +26,8 @@ can move the funds to cold wallet or refund them.
 [X] Correct information ADA only
 [X] Correct information with multiasset
 [X] UTxOs creation
-[X] UTxOs removal
-[X] Correct address filtering
+[] UTxOs removal
+[] Correct address filtering
 
 # Notes
 
@@ -43,7 +43,7 @@ buyer would send us a collateral return output.
 use pallas::ledger::addresses::Address;
 use pallas::ledger::traverse::MultiEraOutput;
 use pallas::ledger::traverse::{MultiEraBlock, MultiEraTx, OutputRef};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{crosscut, model, prelude::*};
 
@@ -56,6 +56,13 @@ pub struct Config {
 pub struct Reducer {
     config: Config,
     policy: crosscut::policies::RuntimePolicy,
+}
+
+#[derive(Serialize)]
+pub struct AdmntUtxo {
+    tx_hash: String,
+    idx: u64,
+    value_cbor: String,
 }
 
 impl Reducer {
@@ -84,12 +91,11 @@ impl Reducer {
             return Ok(())
         }
 
-        let value_str = format!(
-            "{},{},{}",
-            input.hash(),
-            input.index(),
-            hex::encode(utxo.value().encode()),
-        );
+        let value_str = serde_json::to_string(&AdmntUtxo {
+            tx_hash: input.hash().to_string(),
+            idx: input.index(),
+            value_cbor: hex::encode(utxo.value().encode()),
+        }).or_panic()?;
 
         let crdt = model::CRDTCommand::set_remove(
             self.config.key_prefix.as_deref(),
@@ -120,12 +126,11 @@ impl Reducer {
             return Ok(())
         }
 
-        let value_str = format!(
-            "{},{},{}",
-            tx_hash,
-            output_idx,
-            hex::encode(tx_output.value().encode()),
-        );
+        let value_str = serde_json::to_string(&AdmntUtxo {
+            tx_hash: tx_hash.to_string(),
+            idx: output_idx as u64,
+            value_cbor: hex::encode(tx_output.value().encode()),
+        }).or_panic()?;
 
         let crdt = model::CRDTCommand::set_add(
             self.config.key_prefix.as_deref(),
