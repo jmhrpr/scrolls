@@ -4,10 +4,23 @@ use serde::Deserialize;
 use crate::prelude::*;
 use crate::{crosscut, model};
 
+#[derive(Deserialize, Copy, Clone)]
+pub enum Projection {
+    Cbor,
+    Json,
+}
+
+impl Default for Projection {
+    fn default() -> Self {
+        Self::Cbor
+    }
+}
+
 #[derive(Deserialize)]
 pub struct Config {
     pub key_prefix: Option<String>,
     pub filter: Option<crosscut::filters::Predicate>,
+    pub projection: Option<Projection>,
 }
 
 pub struct Reducer {
@@ -21,12 +34,24 @@ impl Reducer {
         tx: &MultiEraTx,
         output: &mut super::OutputPort,
     ) -> Result<(), gasket::error::Error> {
+<<<<<<< HEAD
         let cbor = tx
             .encode();
 
         let crdt =
             model::CRDTCommand::any_write_wins(self.config.key_prefix.as_deref(), tx.hash(), cbor);
 
+=======
+        let key_prefix = self.config.key_prefix.as_deref();
+        let crdt = match self.config.projection.unwrap_or_default() {
+            Projection::Cbor => {
+                let cbor = tx.encode();
+                model::CRDTCommand::any_write_wins(key_prefix, tx.hash(), cbor)
+            }
+            Projection::Json => todo!(),
+        };
+
+>>>>>>> main
         output.send(gasket::messaging::Message::from(crdt))?;
 
         Ok(())
@@ -52,7 +77,7 @@ impl Config {
     pub fn plugin(self, policy: &crosscut::policies::RuntimePolicy) -> super::Reducer {
         let worker = Reducer {
             config: self,
-            policy: policy.clone()
+            policy: policy.clone(),
         };
         super::Reducer::TxByHash(worker)
     }
