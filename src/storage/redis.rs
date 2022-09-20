@@ -27,8 +27,8 @@ impl ToRedisArgs for model::Value {
 #[derive(Serialize)]
 struct ChainTip {
     slot: u64,
-    block_hash: String,
-    block_height: u64,
+    hash: String,
+    height: u64,
 }
 
 #[derive(Deserialize, Clone)]
@@ -206,9 +206,9 @@ impl gasket::runtime::Worker for Worker {
                     .or_restart()?;
             }
             model::CRDTCommand::BlockFinished(point, height, chain_tip) => {
-                let cursor_str = crosscut::PointArg::from(point).to_string();
+                let cursor_point = crosscut::PointArg::from(point);
 
-                let cursor_str = format!("{},{}", cursor_str, height);
+                let cursor_str = format!("{},{}", cursor_point.to_string(), height);
 
                 self.connection
                     .as_mut()
@@ -218,24 +218,40 @@ impl gasket::runtime::Worker for Worker {
 
                 log::info!("new cursor saved to redis {}", &cursor_str);
 
-                let point = crosscut::PointArg::from(chain_tip.0);
+                let tip_point = crosscut::PointArg::from(chain_tip.0);
 
-                if let crosscut::PointArg::Specific(s, h) = point {
-                    let tip_str = serde_json::to_string(&ChainTip {
-                        slot: s,
-                        block_hash: h,
-                        block_height: chain_tip.1,
-                    }).or_panic()?;
+                if let crosscut::PointArg::Specific(cur_slot, cur_hash) = cursor_point {
+                    if let crosscut::PointArg::Specific(tip_slot, tip_hash) = tip_point {
 
-                    self.connection
-                    .as_mut()
-                    .unwrap()
-                    .set("_chaintip", &tip_str)
-                    .or_restart()?;
+                        // TODO setting chaintip to cursor if cursor is greater
+                        // to fix for chaintip being 1 block behind
+                        let tip_str = match chain_tip.1 < height {
+                            true => {
+                                serde_json::to_string(&ChainTip {
+                                    slot: cur_slot,
+                                    hash: cur_hash,
+                                    height
+                                }).or_panic()?
+                            },
+                            false => {
+                                serde_json::to_string(&ChainTip {
+                                    slot: tip_slot,
+                                    hash: tip_hash,
+                                    height: chain_tip.1,
+                                }).or_panic()?
+                            }
+                        };
 
-                    self.ops_count.inc(1);
+                        self.connection
+                        .as_mut()
+                        .unwrap()
+                        .set("_chaintip", &tip_str)
+                        .or_restart()?;
 
-                    log::info!("chaintip saved to redis {}", &tip_str);
+                        self.ops_count.inc(1);
+
+                        log::trace!("chaintip saved to redis {}", &tip_str);
+                    }
                 }
 
                 // end redis transaction
