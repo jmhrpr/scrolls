@@ -29,7 +29,7 @@
             "payment_bech32": ["addr_vkh1wdkle2sprqsuklt34474g6n4ps7k6pv6zwe4644uxmg7xj54y87"]
         },
         {
-            "type": "AdmntCoinBalanceByAddress",
+            "type": "AdmntLovelaceByAddress",
             "key_prefix": "c5",
             "payment_bech32": ["addr_vkh1wdkle2sprqsuklt34474g6n4ps7k6pv6zwe4644uxmg7xj54y87"]
         }
@@ -40,7 +40,7 @@
     },
     "intersect": {
         "type": "Point",
-        "value": [55718873, "57c5dda2865b8568e6f4d92bb3dcbd306c269911300b7166f607f8a6ec18ba39"]
+        "value": [72044921, "459e350be8cdc4d0b896837af3c14362915e9f8f62a394ac07ed2a48d51bfd00"]
     },
     "chain": {
         "type": "Mainnet"
