@@ -1,49 +1,41 @@
 /*
 
-### ADAMINT REDUCER: UTXOS BY ADDRESS ###
+### ADAMINT REDUCER: LOVELACE BALANCE BY ADDRESS ###
 
 KEY:    <prefix>.<base_address>
 
-VALUE:  set ("txhash,idx,value_cbor")
-  where
-    txhash: tx which created the utxo (paired with idx identifies utxo)
-    idx: txout index the utxo is at in the tx
-    value_cbor: CBOR encoding of the UTXO value
+VALUE:  single value (lovelace)
 
-CONFIG: [payment_bech32]: list of bech32 encoding of payment keys - we will monitor all
-        addresses which use any of these payment keys.
+CONFIG: list of bech32 addresses to monitor (hot wallet, cold wallet)
 
-FILTER: only store entries for addresses with a payment key in [payment_bech32]
+FILTER: only store balances for addresses in the filter
 
 # Reducer Description
 
-We need to monitor the UTxOs currently held by the hot wallet to use as inputs in the
-mint batcher and we need to monitor the UTxOs held by the order payment addresses so we
-can move the funds to cold wallet or refund them.
+We want to monitor the ADA balance of the hot wallet so that we know when to move funds to
+the cold wallet, and possibly the balance of the order payment addresses.
 
 # Tests
 
-[X] Correct information ADA only
-[X] Correct information with multiasset
-[X] UTxOs creation
-[X] UTxOs removal
-[X] Correct address filtering
+[X] Balance increases correctly
+[X] Balance decreases correctly
+[X] Filter works correctly with single payment address
 
 # Notes
 
-We will only detect UTxOs created after the intersect. For that reason the
-intersect must be set to some point before the initial funding of the hot wallet.
+We ignore changes in balance caused by invalid transactions which means our balance might
+be less than in reality if we received any collateral return outputs, but this does not
+matter.
 
-We do not monitor UTxOs in invalid transactions. The addresses we want to monitor
-will not spend any UTxOs in invalid transactions. There is no reason why an honest
-buyer would send us a collateral return output.
+We do not monitor multiassets, though multiassets are accounted for in the
+AdmntUtxosByAddress reducer so that we can conserve value in txs.
 
 */
 
 use pallas::ledger::addresses::Address;
-use pallas::ledger::traverse::MultiEraOutput;
-use pallas::ledger::traverse::{MultiEraBlock, MultiEraTx, OutputRef};
-use serde::{Deserialize, Serialize};
+use pallas::ledger::traverse::{MultiEraBlock, OutputRef};
+use pallas::ledger::traverse::{MultiEraOutput, MultiEraTx};
+use serde::Deserialize;
 
 use crate::{crosscut, model, prelude::*};
 
@@ -56,13 +48,6 @@ pub struct Config {
 pub struct Reducer {
     config: Config,
     policy: crosscut::policies::RuntimePolicy,
-}
-
-#[derive(Serialize)]
-pub struct AdmntUtxo {
-    tx_hash: String,
-    idx: u64,
-    value_cbor: String,
 }
 
 impl Reducer {
@@ -91,29 +76,25 @@ impl Reducer {
             return Ok(())
         }
 
-        let value_str = serde_json::to_string(&AdmntUtxo {
-            tx_hash: input.hash().to_string(),
-            idx: input.index(),
-            value_cbor: hex::encode(utxo.value().encode()),
-        }).or_panic()?;
+        let address = address.to_bech32().or_panic()?;
 
-        let crdt = model::CRDTCommand::set_remove(
-            self.config.key_prefix.as_deref(),
-            &address.to_bech32().or_panic()?,
-            value_str,
-        );
+        let key = match &self.config.key_prefix {
+            Some(prefix) => format!("{}.{}", prefix, address),
+            None => format!("{}.{}", "coin_by_address".to_string(), address),
+        };
 
-        output.send(crdt.into())
+        let crdt = model::CRDTCommand::PNCounter(key, -1 * utxo.ada_amount() as i64);
+
+        output.send(gasket::messaging::Message::from(crdt))?;
+
+        Ok(())
     }
 
     fn process_outbound_txo(
         &mut self,
-        tx: &MultiEraTx,
         tx_output: &MultiEraOutput,
-        output_idx: usize,
         output: &mut super::OutputPort,
     ) -> Result<(), gasket::error::Error> {
-        let tx_hash = tx.hash();
         let address = tx_output.address().or_panic()?;
 
         // skip utxos for payment keys we are not monitoring
@@ -126,19 +107,18 @@ impl Reducer {
             return Ok(())
         }
 
-        let value_str = serde_json::to_string(&AdmntUtxo {
-            tx_hash: tx_hash.to_string(),
-            idx: output_idx as u64,
-            value_cbor: hex::encode(tx_output.value().encode()),
-        }).or_panic()?;
+        let address = address.to_bech32().or_panic()?;
 
-        let crdt = model::CRDTCommand::set_add(
-            self.config.key_prefix.as_deref(),
-            &address.to_bech32().or_panic()?,
-            value_str,
-        );
+        let key = match &self.config.key_prefix {
+            Some(prefix) => format!("{}.{}", prefix, address),
+            None => format!("{}.{}", "coin_by_address".to_string(), address),
+        };
 
-        output.send(crdt.into())
+        let crdt = model::CRDTCommand::PNCounter(key, tx_output.ada_amount() as i64);
+
+        output.send(gasket::messaging::Message::from(crdt))?;
+
+        Ok(())
     }
 
     pub fn reduce_valid_tx(
@@ -151,8 +131,8 @@ impl Reducer {
             self.process_inbound_txo(&ctx, &input, output)?;
         }
 
-        for (idx, tx_output) in tx.outputs().iter().enumerate() {
-            self.process_outbound_txo(tx, tx_output, idx, output)?;
+        for (_idx, tx_output) in tx.outputs().iter().enumerate() {
+            self.process_outbound_txo(tx_output, output)?;
         }
 
         Ok(())
@@ -165,7 +145,6 @@ impl Reducer {
         output: &mut super::OutputPort,
     ) -> Result<(), gasket::error::Error> {
         for tx in block.txs().into_iter() {
-            // we will not monitor invalid transactions
             if tx.is_valid() {
                 self.reduce_valid_tx(&tx, ctx, output)?
             };
@@ -182,6 +161,6 @@ impl Config {
             policy: policy.clone(),
         };
 
-        super::Reducer::AdmntUtxosByAddress(reducer)
+        super::Reducer::AdmntLovelaceByAddress(reducer)
     }
 }
