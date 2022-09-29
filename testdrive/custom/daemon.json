@@ -1,37 +1,37 @@
 {
     "source": {
         "type": "N2N",
-        "address": "relays-new.cardano-mainnet.iohk.io:3001"
+        "address": "preprod-node.world.dev.cardano.org:30000"
     },
     "reducers": [
         {
             "type": "AdmntPaymentsByAddress",
             "key_prefix": "c1",
-            "payment_vkh": "addr_vkh1wdkle2sprqsuklt34474g6n4ps7k6pv6zwe4644uxmg7xj54y87"
+            "payment_vkh": "addr_vkh1nc7d6tzpjqlklql73nqsnrmm8h8uj9h9xs6je8kzac6n752y82n"
         },
         {
             "type": "AdmntBlockHeightByHash",
             "key_prefix": "c2",
             "filter": {
                 "output_address": {
-                    "payment_bech32": "addr_vkh1wdkle2sprqsuklt34474g6n4ps7k6pv6zwe4644uxmg7xj54y87"
+                    "payment_bech32": "addr_vkh1nc7d6tzpjqlklql73nqsnrmm8h8uj9h9xs6je8kzac6n752y82n"
                 }
             }
         },
         {
             "type": "AdmntMintTxByAsset",
             "key_prefix": "c3",
-            "nft_policy": "f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a"
+            "nft_policy": "f08e8cadc9dbaf4a4e2edade8e4ddd48111fc5af4f655c8185bc57dc"
         },
         {
             "type": "AdmntUtxosByAddress",
             "key_prefix": "c4",
-            "payment_bech32": ["addr_vkh1wdkle2sprqsuklt34474g6n4ps7k6pv6zwe4644uxmg7xj54y87"]
+            "payment_bech32": ["addr_vkh1nc7d6tzpjqlklql73nqsnrmm8h8uj9h9xs6je8kzac6n752y82n"]
         },
         {
             "type": "AdmntLovelaceByAddress",
             "key_prefix": "c5",
-            "payment_bech32": ["addr_vkh1wdkle2sprqsuklt34474g6n4ps7k6pv6zwe4644uxmg7xj54y87"]
+            "payment_bech32": ["addr_vkh1nc7d6tzpjqlklql73nqsnrmm8h8uj9h9xs6je8kzac6n752y82n"]
         }
     ],
     "storage": {
@@ -40,10 +40,10 @@
     },
     "intersect": {
         "type": "Point",
-        "value": [72044921, "459e350be8cdc4d0b896837af3c14362915e9f8f62a394ac07ed2a48d51bfd00"]
+        "value": [8528511, "67a2639c5c8a251333444501c953f0293926f0cf976cefa11e6056d7a07fab25"]
     },
     "chain": {
-        "type": "Mainnet"
+        "type": "PreProd"
     },
     "policy": {
         "missing_data": "Skip"
