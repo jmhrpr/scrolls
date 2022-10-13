@@ -53,8 +53,7 @@ name.
 use std::collections::BTreeMap;
 
 use pallas::ledger::addresses::Address;
-use pallas::ledger::primitives::babbage::Value;
-use pallas::ledger::traverse::{MultiEraBlock, MultiEraTx};
+use pallas::ledger::traverse::{MultiEraBlock, MultiEraTx, MultiEraOutput, Asset};
 use pallas::crypto::hash::Hash;
 
 use serde::{Deserialize, Serialize};
@@ -102,13 +101,13 @@ impl Reducer {
                     let entry = addr_map.entry(addr.to_bech32().or_panic()?)
                         .or_insert((0, false));
 
-                    entry.0 += tx_output.ada_amount();
+                    entry.0 += tx_output.lovelace_amount();
 
                     // flag if any output in tx contains a free-mint credit
                     if let Some(credit_policy) = mint_credit_policy {
-                        entry.1 |= value_contains_free_mint_token(
+                        entry.1 |= output_contains_free_mint_token(
                             credit_policy,
-                            tx_output.value()
+                            tx_output
                         ).or_panic()?
                     }
                 }
@@ -173,13 +172,13 @@ impl Config {
 // Return true iff the value contains at least 1 of /any/ token with the given policy,
 // regardless of asset name. We check the amount as well as the presence of the policy
 // because it may be possible to include '0' amount of an asset in the tx serialisation.
-fn value_contains_free_mint_token(
-    policy: Hash<28>, value: Value
+fn output_contains_free_mint_token(
+    policy: Hash<28>, output: &MultiEraOutput
 ) -> Result<bool, gasket::error::Error> {
-    if let Value::Multiasset(_, ma) = value {
-        if let Some(assets) = ma.get(&policy) {
-            if let Some((_asset, amount)) = assets.iter().next() {
-                if *amount >= 1 {return Ok(true)};
+    for asset in output.non_ada_assets() {
+        if let Asset::NativeAsset(pid, _, _) = asset {
+            if pid == policy {
+                return Ok(true)
             }
         }
     }

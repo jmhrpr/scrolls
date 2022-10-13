@@ -29,7 +29,6 @@ TODO we need to remove rollbacked blocks
 */
 
 use pallas::ledger::traverse::MultiEraBlock;
-use serde::de::value;
 use serde::{Deserialize, Serialize};
 
 use crate::prelude::*;
