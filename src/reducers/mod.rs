@@ -16,6 +16,17 @@ pub mod utxo_by_address;
 mod worker;
 
 #[cfg(feature = "unstable")]
+pub mod admnt_payments_by_address;
+#[cfg(feature = "unstable")]
+pub mod admnt_block_height_by_hash;
+#[cfg(feature = "unstable")]
+pub mod admnt_mint_tx_by_asset;
+#[cfg(feature = "unstable")]
+pub mod admnt_utxos_by_address;
+#[cfg(feature = "unstable")]
+pub mod admnt_lovelace_by_address;
+
+#[cfg(feature = "unstable")]
 pub mod address_by_ada_handle;
 #[cfg(feature = "unstable")]
 pub mod address_by_txo;
@@ -34,23 +45,23 @@ pub mod tx_count_by_native_token_policy_id;
 #[cfg(feature = "unstable")]
 pub mod asset_holders_by_asset_id;
 
-#[cfg(feature = "unstable")]
-pub mod admnt_payments_by_address;
-#[cfg(feature = "unstable")]
-pub mod admnt_block_height_by_hash;
-#[cfg(feature = "unstable")]
-pub mod admnt_mint_tx_by_asset;
-#[cfg(feature = "unstable")]
-pub mod admnt_utxos_by_address;
-#[cfg(feature = "unstable")]
-pub mod admnt_lovelace_by_address;
-
 #[derive(Deserialize)]
 #[serde(tag = "type")]
 pub enum Config {
     UtxoByAddress(utxo_by_address::Config),
     PointByTx(point_by_tx::Config),
     PoolByStake(pool_by_stake::Config),
+
+    #[cfg(feature = "unstable")]
+    AdmntPaymentsByAddress(admnt_payments_by_address::Config),
+    #[cfg(feature = "unstable")]
+    AdmntBlockHeightByHash(admnt_block_height_by_hash::Config),
+    #[cfg(feature = "unstable")]
+    AdmntMintTxByAsset(admnt_mint_tx_by_asset::Config),
+    #[cfg(feature = "unstable")]
+    AdmntUtxosByAddress(admnt_utxos_by_address::Config),
+    #[cfg(feature = "unstable")]
+    AdmntLovelaceByAddress(admnt_lovelace_by_address::Config),
 
     #[cfg(feature = "unstable")]
     AddressByTxo(address_by_txo::Config),
@@ -70,17 +81,6 @@ pub enum Config {
     TxCountByNativeTokenPolicyId(tx_count_by_native_token_policy_id::Config),
     #[cfg(feature = "unstable")]
     AssetHoldersByAsset(asset_holders_by_asset_id::Config),
-
-    #[cfg(feature = "unstable")]
-    AdmntPaymentsByAddress(admnt_payments_by_address::Config),
-    #[cfg(feature = "unstable")]
-    AdmntBlockHeightByHash(admnt_block_height_by_hash::Config),
-    #[cfg(feature = "unstable")]
-    AdmntMintTxByAsset(admnt_mint_tx_by_asset::Config),
-    #[cfg(feature = "unstable")]
-    AdmntUtxosByAddress(admnt_utxos_by_address::Config),
-    #[cfg(feature = "unstable")]
-    AdmntLovelaceByAddress(admnt_lovelace_by_address::Config),
 }
 
 impl Config {
@@ -93,6 +93,17 @@ impl Config {
             Config::UtxoByAddress(c) => c.plugin(policy),
             Config::PointByTx(c) => c.plugin(),
             Config::PoolByStake(c) => c.plugin(),
+
+            #[cfg(feature = "unstable")]
+            Config::AdmntPaymentsByAddress(c) => c.plugin(),
+            #[cfg(feature = "unstable")]
+            Config::AdmntBlockHeightByHash(c) => c.plugin(policy),
+            #[cfg(feature = "unstable")]
+            Config::AdmntMintTxByAsset(c) => c.plugin(),
+            #[cfg(feature = "unstable")]
+            Config::AdmntUtxosByAddress(c) => c.plugin(policy),
+            #[cfg(feature = "unstable")]
+            Config::AdmntLovelaceByAddress(c) => c.plugin(policy),
 
             #[cfg(feature = "unstable")]
             Config::AddressByTxo(c) => c.plugin(policy),
@@ -112,17 +123,6 @@ impl Config {
             Config::TxCountByNativeTokenPolicyId(c) => c.plugin(chain),
             #[cfg(feature = "unstable")]
             Config::AssetHoldersByAsset(c) => c.plugin(chain, policy),
-
-            #[cfg(feature = "unstable")]
-            Config::AdmntPaymentsByAddress(c) => c.plugin(),
-            #[cfg(feature = "unstable")]
-            Config::AdmntBlockHeightByHash(c) => c.plugin(policy),
-            #[cfg(feature = "unstable")]
-            Config::AdmntMintTxByAsset(c) => c.plugin(),
-            #[cfg(feature = "unstable")]
-            Config::AdmntUtxosByAddress(c) => c.plugin(policy),
-            #[cfg(feature = "unstable")]
-            Config::AdmntLovelaceByAddress(c) => c.plugin(policy),
         }
     }
 }
@@ -178,6 +178,17 @@ pub enum Reducer {
     PoolByStake(pool_by_stake::Reducer),
 
     #[cfg(feature = "unstable")]
+    AdmntPaymentsByAddress(admnt_payments_by_address::Reducer),
+    #[cfg(feature = "unstable")]
+    AdmntBlockHeightByHash(admnt_block_height_by_hash::Reducer),
+    #[cfg(feature = "unstable")]
+    AdmntMintTxByAsset(admnt_mint_tx_by_asset::Reducer),
+    #[cfg(feature = "unstable")]
+    AdmntUtxosByAddress(admnt_utxos_by_address::Reducer),
+    #[cfg(feature = "unstable")]
+    AdmntLovelaceByAddress(admnt_lovelace_by_address::Reducer),
+
+    #[cfg(feature = "unstable")]
     AddressByTxo(address_by_txo::Reducer),
     #[cfg(feature = "unstable")]
     BalanceByAddress(balance_by_address::Reducer),
@@ -195,17 +206,6 @@ pub enum Reducer {
     TxCountByNativeTokenPolicyId(tx_count_by_native_token_policy_id::Reducer),
     #[cfg(feature = "unstable")]
     AssetHoldersByAssetId(asset_holders_by_asset_id::Reducer),
-
-    #[cfg(feature = "unstable")]
-    AdmntPaymentsByAddress(admnt_payments_by_address::Reducer),
-    #[cfg(feature = "unstable")]
-    AdmntBlockHeightByHash(admnt_block_height_by_hash::Reducer),
-    #[cfg(feature = "unstable")]
-    AdmntMintTxByAsset(admnt_mint_tx_by_asset::Reducer),
-    #[cfg(feature = "unstable")]
-    AdmntUtxosByAddress(admnt_utxos_by_address::Reducer),
-    #[cfg(feature = "unstable")]
-    AdmntLovelaceByAddress(admnt_lovelace_by_address::Reducer),
 }
 
 impl Reducer {
@@ -219,6 +219,17 @@ impl Reducer {
             Reducer::UtxoByAddress(x) => x.reduce_block(block, ctx, output),
             Reducer::PointByTx(x) => x.reduce_block(block, output),
             Reducer::PoolByStake(x) => x.reduce_block(block, output),
+
+            #[cfg(feature = "unstable")]
+            Reducer::AdmntPaymentsByAddress(x) => x.reduce_block(block, output),
+            #[cfg(feature = "unstable")]
+            Reducer::AdmntBlockHeightByHash(x) => x.reduce_block(block, ctx, output),
+            #[cfg(feature = "unstable")]
+            Reducer::AdmntMintTxByAsset(x) => x.reduce_block(block, output),
+            #[cfg(feature = "unstable")]
+            Reducer::AdmntUtxosByAddress(x) => x.reduce_block(block, ctx, output),
+            #[cfg(feature = "unstable")]
+            Reducer::AdmntLovelaceByAddress(x) => x.reduce_block(block, ctx, output),
 
             #[cfg(feature = "unstable")]
             Reducer::AddressByTxo(x) => x.reduce_block(block, ctx, output),
@@ -238,17 +249,6 @@ impl Reducer {
             Reducer::TxCountByNativeTokenPolicyId(x) => x.reduce_block(block, output),
             #[cfg(feature = "unstable")]
             Reducer::AssetHoldersByAssetId(x) => x.reduce_block(block, ctx, output),
-
-            #[cfg(feature = "unstable")]
-            Reducer::AdmntPaymentsByAddress(x) => x.reduce_block(block, output),
-            #[cfg(feature = "unstable")]
-            Reducer::AdmntBlockHeightByHash(x) => x.reduce_block(block, ctx, output),
-            #[cfg(feature = "unstable")]
-            Reducer::AdmntMintTxByAsset(x) => x.reduce_block(block, output),
-            #[cfg(feature = "unstable")]
-            Reducer::AdmntUtxosByAddress(x) => x.reduce_block(block, ctx, output),
-            #[cfg(feature = "unstable")]
-            Reducer::AdmntLovelaceByAddress(x) => x.reduce_block(block, ctx, output),
         }
 }
 }
