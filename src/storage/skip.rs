@@ -9,13 +9,13 @@ use serde::Deserialize;
 
 use crate::{bootstrap, crosscut, model};
 
-type InputPort = gasket::messaging::InputPort<model::CRDTCommand>;
+type InputPort = gasket::messaging::TwoPhaseInputPort<model::CRDTCommand>;
 
 #[derive(Deserialize, Clone)]
 pub struct Config {}
 
 impl Config {
-    pub fn boostrapper(self) -> Bootstrapper {
+    pub fn bootstrapper(self) -> Bootstrapper {
         Bootstrapper {
             input: Default::default(),
             last_point: Arc::new(Mutex::new(None)),
@@ -100,6 +100,12 @@ impl gasket::runtime::Worker for Worker {
             model::CRDTCommand::SetAdd(key, value) => {
                 log::debug!("adding to set [{}], value [{}]", key, value);
             }
+            model::CRDTCommand::SortedSetAdd(key, value, delta) => {
+                log::debug!("adding to set [{}], value [{}], delta [{}]", key, value, delta);
+            }
+            model::CRDTCommand::SortedSetRemove(key, value, delta) => {
+                log::debug!("removing from set [{}], value [{}], delta [{}]", key, value, delta);
+            }
             model::CRDTCommand::SetRemove(key, value) => {
                 log::debug!("removing from set [{}], value [{}]", key, value);
             }
@@ -120,7 +126,7 @@ impl gasket::runtime::Worker for Worker {
         };
 
         self.ops_count.inc(1);
-
+        self.input.commit();
         Ok(WorkOutcome::Partial)
     }
 }

@@ -78,10 +78,12 @@ pub type Delta = i64;
 pub type Timestamp = u64;
 pub type Height = u64;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Value {
     String(String),
+    BigInt(i128),
     Cbor(Vec<u8>),
+    Json(serde_json::Value),
 }
 
 impl From<String> for Value {
@@ -96,12 +98,20 @@ impl From<Vec<u8>> for Value {
     }
 }
 
-#[derive(Debug)]
+impl From<serde_json::Value> for Value {
+    fn from(x: serde_json::Value) -> Self {
+        Value::Json(x)
+    }
+}
+
+#[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum CRDTCommand {
     BlockStarting(Point),
     SetAdd(Set, Member),
     SetRemove(Set, Member),
+    SortedSetAdd(Set, Member, Delta),
+    SortedSetRemove(Set, Member, Delta),
     TwoPhaseSetAdd(Set, Member),
     TwoPhaseSetRemove(Set, Member),
     GrowOnlySetAdd(Set, Member),

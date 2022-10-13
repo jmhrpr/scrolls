@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{bootstrap, crosscut, model};
 
-type InputPort = gasket::messaging::InputPort<model::CRDTCommand>;
+type InputPort = gasket::messaging::TwoPhaseInputPort<model::CRDTCommand>;
 
 impl ToRedisArgs for model::Value {
     fn write_redis_args<W>(&self, out: &mut W)
@@ -19,7 +19,9 @@ impl ToRedisArgs for model::Value {
     {
         match self {
             model::Value::String(x) => x.write_redis_args(out),
+            model::Value::BigInt(x) => x.to_string().write_redis_args(out),
             model::Value::Cbor(x) => x.write_redis_args(out),
+            model::Value::Json(x) => todo!("{}", x),
         }
     }
 }
@@ -37,7 +39,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn boostrapper(
+    pub fn bootstrapper(
         self,
         _chain: &crosscut::ChainWellKnownInfo,
         _intersect: &crosscut::IntersectConfig,
@@ -187,6 +189,31 @@ impl gasket::runtime::Worker for Worker {
                     .zadd(key, value, ts)
                     .or_restart()?;
             }
+            model::CRDTCommand::SortedSetAdd(key, value, delta) => {
+                log::debug!("sorted set add [{}], value [{}], delta [{}]", key, value, delta);
+
+                self.connection
+                    .as_mut()
+                    .unwrap()
+                    .zincr(key, value, delta)
+                    .or_restart()?;
+            }
+            model::CRDTCommand::SortedSetRemove(key, value, delta) => {
+                log::debug!("sorted set remove [{}], value [{}], delta [{}]", key, value, delta);
+
+                self.connection
+                    .as_mut()
+                    .unwrap()
+                    .zincr(&key, value, delta)
+                    .or_restart()?;
+
+                    // removal of dangling scores  (aka garage collection)
+                    self.connection
+                    .as_mut()
+                    .unwrap()
+                    .zrembyscore(&key, 0, 0)
+                    .or_restart()?;
+            }
             model::CRDTCommand::AnyWriteWins(key, value) => {
                 log::debug!("overwrite [{}]", key);
 
@@ -262,6 +289,7 @@ impl gasket::runtime::Worker for Worker {
         };
 
         self.ops_count.inc(1);
+        self.input.commit();
 
         Ok(WorkOutcome::Partial)
     }
