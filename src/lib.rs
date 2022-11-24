@@ -4,6 +4,7 @@ pub mod enrich;
 pub mod model;
 pub mod prelude;
 pub mod reducers;
+pub mod rollback;
 pub mod sources;
 pub mod storage;
 
