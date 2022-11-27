@@ -16,6 +16,9 @@ pub mod utxo_by_address;
 mod worker;
 
 #[cfg(feature = "unstable")]
+pub mod hftq2_rev_by_day;
+
+#[cfg(feature = "unstable")]
 pub mod address_by_ada_handle;
 #[cfg(feature = "unstable")]
 pub mod address_by_txo;
@@ -42,6 +45,9 @@ pub enum Config {
     UtxoByAddress(utxo_by_address::Config),
     PointByTx(point_by_tx::Config),
     PoolByStake(pool_by_stake::Config),
+
+    #[cfg(feature = "unstable")]
+    Hftq2RevByDay(hftq2_rev_by_day::Config),
 
     #[cfg(feature = "unstable")]
     AddressByTxo(address_by_txo::Config),
@@ -75,6 +81,9 @@ impl Config {
             Config::UtxoByAddress(c) => c.plugin(policy),
             Config::PointByTx(c) => c.plugin(),
             Config::PoolByStake(c) => c.plugin(),
+
+            #[cfg(feature = "unstable")]
+            Config::Hftq2RevByDay(c) => c.plugin(policy),
 
             #[cfg(feature = "unstable")]
             Config::AddressByTxo(c) => c.plugin(policy),
@@ -151,6 +160,9 @@ pub enum Reducer {
     PoolByStake(pool_by_stake::Reducer),
 
     #[cfg(feature = "unstable")]
+    Hftq2RevByDay(hftq2_rev_by_day::Reducer),
+
+    #[cfg(feature = "unstable")]
     AddressByTxo(address_by_txo::Reducer),
     #[cfg(feature = "unstable")]
     BalanceByAddress(balance_by_address::Reducer),
@@ -183,6 +195,9 @@ impl Reducer {
             Reducer::UtxoByAddress(x) => x.reduce_block(block, ctx, output),
             Reducer::PointByTx(x) => x.reduce_block(block, output),
             Reducer::PoolByStake(x) => x.reduce_block(block, output),
+
+            #[cfg(feature = "unstable")]
+            Reducer::Hftq2RevByDay(x) => x.reduce_block(block, ctx, output),
 
             #[cfg(feature = "unstable")]
             Reducer::AddressByTxo(x) => x.reduce_block(block, ctx, output),

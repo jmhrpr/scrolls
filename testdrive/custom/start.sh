@@ -1,1 +1,1 @@
-RUST_LOG=info cargo run --all-features --bin scrolls -- daemon --console plain --config ./daemon.toml
+RUST_LOG=warn cargo run --all-features --bin scrolls -- daemon --console plain --config ./daemon.json
