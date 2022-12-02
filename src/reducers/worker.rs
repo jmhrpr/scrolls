@@ -5,7 +5,7 @@ use crate::{crosscut, model, prelude::*};
 use super::Reducer;
 
 type InputPort = gasket::messaging::TwoPhaseInputPort<model::EnrichedBlockPayload>;
-type OutputPort = gasket::messaging::OutputPort<model::CRDTCommand>;
+type OutputPort = gasket::messaging::OutputPort<model::StorageAction>;
 
 pub struct Worker {
     input: InputPort,
@@ -51,7 +51,7 @@ impl Worker {
         self.last_block.set(block.number() as i64);
 
         self.output.send(gasket::messaging::Message::from(
-            model::CRDTCommand::block_starting(&block),
+            model::StorageAction::block_starting(&block),
         ))?;
 
         for reducer in self.reducers.iter_mut() {
@@ -60,7 +60,7 @@ impl Worker {
         }
 
         self.output.send(gasket::messaging::Message::from(
-            model::CRDTCommand::block_finished(&block),
+            model::StorageAction::block_finished(&block),
         ))?;
 
         Ok(())

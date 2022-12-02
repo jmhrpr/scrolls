@@ -38,7 +38,7 @@ impl Reducer {
         let crdt = match self.config.projection.unwrap_or_default() {
             Projection::Cbor => {
                 let cbor = tx.encode();
-                model::CRDTCommand::any_write_wins(key_prefix, tx.hash(), cbor)
+                model::StorageAction::any_write_wins(key_prefix, tx.hash(), cbor)
             }
             Projection::Json => todo!(),
         };

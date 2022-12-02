@@ -26,7 +26,7 @@ impl Reducer {
 
         let utxo = match utxo {
             Some(x) => x,
-            None => return Ok(())
+            None => return Ok(()),
         };
 
         let address = utxo.address().map(|x| x.to_string()).or_panic()?;
@@ -37,7 +37,7 @@ impl Reducer {
             }
         }
 
-        let crdt = model::CRDTCommand::set_remove(
+        let crdt = model::StorageAction::set_remove(
             self.config.key_prefix.as_deref(),
             &address,
             input.to_string(),
@@ -54,7 +54,10 @@ impl Reducer {
         output: &mut super::OutputPort,
     ) -> Result<(), gasket::error::Error> {
         let tx_hash = tx.hash();
-        let address = tx_output.address().map(|addr| addr.to_string()).or_panic()?;
+        let address = tx_output
+            .address()
+            .map(|addr| addr.to_string())
+            .or_panic()?;
 
         if let Some(addresses) = &self.config.filter {
             if let Err(_) = addresses.binary_search(&address) {
@@ -62,7 +65,7 @@ impl Reducer {
             }
         }
 
-        let crdt = model::CRDTCommand::set_add(
+        let crdt = model::StorageAction::set_add(
             self.config.key_prefix.as_deref(),
             &address,
             format!("{}#{}", tx_hash, output_idx),

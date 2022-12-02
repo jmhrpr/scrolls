@@ -49,7 +49,7 @@ pub enum Bootstrapper {
 }
 
 impl Bootstrapper {
-    pub fn borrow_input_port(&mut self) -> &'_ mut TwoPhaseInputPort<model::CRDTCommand> {
+    pub fn borrow_input_port(&mut self) -> &'_ mut TwoPhaseInputPort<model::StorageAction> {
         match self {
             Bootstrapper::Skip(x) => x.borrow_input_port(),
             Bootstrapper::Redis(x) => x.borrow_input_port(),

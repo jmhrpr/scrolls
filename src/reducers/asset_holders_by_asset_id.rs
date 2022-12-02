@@ -85,7 +85,7 @@ impl Reducer {
                         let delta = quantity as i64 * (-1);
 
                         let crdt =
-                            model::CRDTCommand::SortedSetRemove(key, address.to_string(), delta);
+                            model::StorageAction::SortedSetIncr(key, address.to_string(), delta);
 
                         output.send(gasket::messaging::Message::from(crdt))?;
                     }
@@ -117,7 +117,7 @@ impl Reducer {
                         let delta = quantity as i64;
 
                         let crdt =
-                            model::CRDTCommand::SortedSetAdd(key, address.to_string(), delta);
+                            model::StorageAction::SortedSetIncr(key, address.to_string(), delta);
 
                         output.send(gasket::messaging::Message::from(crdt))?;
                     }

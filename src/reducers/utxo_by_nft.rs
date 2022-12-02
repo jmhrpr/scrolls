@@ -25,7 +25,7 @@ impl Reducer {
     ) -> Result<(), gasket::error::Error> {
         let tx_hash = tx.hash();
 
-        let crdt = model::CRDTCommand::any_write_wins(
+        let crdt = model::StorageAction::any_write_wins(
             self.config.key_prefix.as_deref(),
             format!("{}{}", policy, hex::encode(asset)),
             format!("{}#{}", tx_hash, txo_idx),

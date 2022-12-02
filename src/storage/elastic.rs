@@ -13,12 +13,12 @@ use serde_json::{json, Value as JsonValue};
 
 use crate::{
     bootstrap, crosscut,
-    model::{self, CRDTCommand},
+    model::{self, StorageAction},
     prelude::AppliesPolicy,
     Error,
 };
 
-type InputPort = gasket::messaging::TwoPhaseInputPort<model::CRDTCommand>;
+type InputPort = gasket::messaging::TwoPhaseInputPort<model::StorageAction>;
 
 impl From<model::Value> for JsonValue {
     fn from(other: model::Value) -> JsonValue {
@@ -125,8 +125,8 @@ const BATCH_SIZE: usize = 40;
 
 #[derive(Default)]
 struct Batch {
-    block_end: Option<CRDTCommand>,
-    items: Vec<CRDTCommand>,
+    block_end: Option<StorageAction>,
+    items: Vec<StorageAction>,
 }
 
 fn recv_batch(input: &mut InputPort) -> Result<Batch, gasket::error::Error> {
@@ -135,8 +135,8 @@ fn recv_batch(input: &mut InputPort) -> Result<Batch, gasket::error::Error> {
     loop {
         match input.recv_or_idle() {
             Ok(x) => match x.payload {
-                CRDTCommand::BlockStarting(_) => (),
-                CRDTCommand::BlockFinished(_) => {
+                StorageAction::BlockStarting(_) => (),
+                StorageAction::BlockFinished(_) => {
                     batch.block_end = Some(x.payload);
                     return Ok(batch);
                 }
@@ -156,16 +156,16 @@ fn recv_batch(input: &mut InputPort) -> Result<Batch, gasket::error::Error> {
 
 type ESResult = Result<Response, elasticsearch::Error>;
 
-async fn apply_command(cmd: CRDTCommand, client: &Elasticsearch) -> Option<ESResult> {
+async fn apply_command(cmd: StorageAction, client: &Elasticsearch) -> Option<ESResult> {
     match cmd {
-        CRDTCommand::BlockStarting(_) => None,
-        CRDTCommand::AnyWriteWins(key, value) => client
+        StorageAction::BlockStarting(_) => None,
+        StorageAction::KeyValueSet(key, value) => client
             .index(elasticsearch::IndexParts::IndexId("scrolls", &key))
             .body::<JsonValue>(json!({ "key": &key, "value": JsonValue::from(value) }))
             .send()
             .await
             .into(),
-        CRDTCommand::BlockFinished(_) => {
+        StorageAction::BlockFinished(_) => {
             log::warn!("Elasticsearch storage doesn't support cursors ATM");
             None
         }

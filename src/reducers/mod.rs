@@ -7,7 +7,7 @@ use serde::Deserialize;
 use crate::{bootstrap, crosscut, model};
 
 type InputPort = gasket::messaging::TwoPhaseInputPort<model::EnrichedBlockPayload>;
-type OutputPort = gasket::messaging::OutputPort<model::CRDTCommand>;
+type OutputPort = gasket::messaging::OutputPort<model::StorageAction>;
 
 pub mod macros;
 pub mod point_by_tx;

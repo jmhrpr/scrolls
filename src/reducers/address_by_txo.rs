@@ -26,7 +26,7 @@ impl Reducer {
         output_idx: usize,
         output: &mut super::OutputPort,
     ) -> Result<(), gasket::error::Error> {
-        let crdt = model::CRDTCommand::last_write_wins(
+        let crdt = model::StorageAction::last_write_wins(
             self.config.key_prefix.as_deref(),
             &format!("{}#{}", tx_hash, output_idx),
             address.to_string(),

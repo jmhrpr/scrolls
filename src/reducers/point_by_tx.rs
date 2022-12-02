@@ -27,7 +27,7 @@ impl Reducer {
         };
 
         let member = format!("{},{}", block_slot, block_hash);
-        let crdt = model::CRDTCommand::GrowOnlySetAdd(key, member);
+        let crdt = model::StorageAction::SetAdd(key, member);
 
         output.send(gasket::messaging::Message::from(crdt))?;
 
