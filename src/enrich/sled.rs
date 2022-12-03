@@ -5,9 +5,11 @@ use gasket::{
     runtime::{spawn_stage, WorkOutcome},
 };
 
+use log::warn;
 use pallas::{
     codec::minicbor,
     ledger::traverse::{Era, MultiEraBlock, MultiEraTx, OutputRef},
+    network::miniprotocols::Point,
 };
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::Deserialize;
@@ -17,6 +19,7 @@ use crate::{
     bootstrap, crosscut,
     model::{self, BlockContext},
     prelude::AppliesPolicy,
+    rollback::buffer::RollbackBuffer,
 };
 
 type InputPort = gasket::messaging::TwoPhaseInputPort<model::RawBlockPayload>;
@@ -61,6 +64,7 @@ impl Bootstrapper {
             db: None,
             input: self.input,
             output: self.output,
+            rollback_buffer: Default::default(),
             inserts_counter: Default::default(),
             remove_counter: Default::default(),
             matches_counter: Default::default(),
@@ -85,6 +89,7 @@ pub struct Worker {
     db: Option<sled::Db>,
     input: InputPort,
     output: OutputPort,
+    rollback_buffer: RollbackBuffer<EnrichResult>,
     inserts_counter: gasket::metrics::Counter,
     remove_counter: gasket::metrics::Counter,
     matches_counter: gasket::metrics::Counter,
@@ -115,6 +120,16 @@ impl TryFrom<IVec> for SledTxValue {
     }
 }
 
+/// A UTxO consumed by the Tx and therefore removed from the db, with its value so
+/// that we have the information required to re-add the UTxO on rollback.
+type ConsumedUtxo = (String, SledTxValue);
+/// A UTxO produced by the Tx and therefore added to the db. We don't need the
+/// value because to undo this operation we just need to delete the key (TxId).
+type ProducedUtxo = String;
+/// The cumulitive results of the enrich stage: the list of consumed UTxOs and
+/// produced UTxOs as a result of processing the block.
+type EnrichResult = (Vec<ConsumedUtxo>, Vec<ProducedUtxo>);
+
 #[inline]
 fn fetch_referenced_utxo<'a>(
     db: &sled::Db,
@@ -134,18 +149,26 @@ fn fetch_referenced_utxo<'a>(
 
 impl Worker {
     #[inline]
-    fn insert_produced_utxos(&self, db: &sled::Db, txs: &[MultiEraTx]) -> Result<(), crate::Error> {
+    fn insert_produced_utxos(
+        &self,
+        db: &sled::Db,
+        txs: &[MultiEraTx],
+    ) -> Result<Vec<ProducedUtxo>, crate::Error> {
         let mut insert_batch = sled::Batch::default();
+        let mut produced = Vec::new();
 
         for tx in txs.iter() {
             for (idx, output) in tx.produces() {
-                let key: IVec = format!("{}#{}", tx.hash(), idx).as_bytes().into();
+                let txout_id = format!("{}#{}", tx.hash(), idx);
+
+                let key: IVec = txout_id.as_bytes().into();
 
                 let era = tx.era().into();
                 let body = output.encode();
                 let value: IVec = SledTxValue(era, body).try_into()?;
 
-                insert_batch.insert(key, value)
+                insert_batch.insert(key, value);
+                produced.push(txout_id);
             }
         }
 
@@ -154,7 +177,7 @@ impl Worker {
 
         self.inserts_counter.inc(txs.len() as u64);
 
-        Ok(())
+        Ok(produced)
     }
 
     #[inline]
@@ -188,7 +211,13 @@ impl Worker {
         Ok(ctx)
     }
 
-    fn remove_consumed_utxos(&self, db: &sled::Db, txs: &[MultiEraTx]) -> Result<(), crate::Error> {
+    fn remove_consumed_utxos(
+        &self,
+        db: &sled::Db,
+        txs: &[MultiEraTx],
+    ) -> Result<Vec<ConsumedUtxo>, crate::Error> {
+        let mut consumed = Vec::new();
+
         let keys: Vec<_> = txs
             .iter()
             .flat_map(|tx| tx.consumes())
@@ -196,13 +225,23 @@ impl Worker {
             .collect();
 
         for key in keys.iter() {
-            db.remove(key.to_string().as_bytes())
+            // this returns the value of the deleted key (if present)
+            let ret = db
+                .remove(key.to_string().as_bytes())
                 .map_err(crate::Error::storage)?;
+
+            match ret {
+                Some(value) => consumed.push((
+                    key.to_string(),
+                    value.try_into().map_err(crate::Error::storage)?,
+                )),
+                None => warn!("tried to remove UTxO from enrich db which didn't exist: {key}"),
+            }
         }
 
         self.remove_counter.inc(keys.len() as u64);
 
-        Ok(())
+        Ok(consumed)
     }
 }
 
@@ -232,25 +271,41 @@ impl gasket::runtime::Worker for Worker {
                     None => return Ok(gasket::runtime::WorkOutcome::Partial),
                 };
 
+                let point = Point::Specific(block.slot(), block.hash().to_vec());
+
                 let db = self.db.as_ref().unwrap();
 
                 let txs = block.txs();
 
                 // first we insert new utxo produced in this block
-                self.insert_produced_utxos(db, &txs).or_restart()?;
+                let produced = self.insert_produced_utxos(db, &txs).or_restart()?;
 
                 // then we fetch referenced utxo in this block
                 let ctx = self.par_fetch_referenced_utxos(db, &txs).or_restart()?;
 
                 // and finally we remove utxos consumed by the block
-                self.remove_consumed_utxos(db, &txs).or_restart()?;
+                let consumed = self.remove_consumed_utxos(db, &txs).or_restart()?;
 
+                // then we collect information about which utxos were added to
+                // or removed from the db for this block and add it to the
+                // rollback buffer
+                let enrich_effects = (consumed, produced);
+
+                self.rollback_buffer.add_block(point, enrich_effects);
+
+                // then we send the block down the pipeline
                 self.output
                     .send(model::EnrichedBlockPayload::roll_forward(cbor, ctx))?;
 
                 self.blocks_counter.inc(1);
             }
             model::RawBlockPayload::RollBack(x) => {
+                // retrieve block for point OR retrieve only UTxOs consumed + produced by the block
+
+                // re-insert the consumed UTxOs
+
+                // remove the produced UTxOs which we added for the rollbacked block
+
                 self.output
                     .send(model::EnrichedBlockPayload::roll_back(x))?;
             }
