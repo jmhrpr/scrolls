@@ -229,7 +229,7 @@ impl gasket::runtime::Worker for Worker {
                     .arg(key)
                     .query(self.connection.as_mut().unwrap())
                     .or_restart()?;
-            },
+            }
 
             model::StorageAction::PNCounter(key, delta) => {
                 log::debug!("increasing counter [{}], by [{}]", key, delta);
@@ -271,7 +271,6 @@ impl gasket::runtime::Worker for Worker {
             }
 
             // Rollback-only actions
-
             model::StorageAction::RollbackStarting(_) => {
                 // start redis transaction
                 redis::cmd("MULTI")
@@ -285,7 +284,7 @@ impl gasket::runtime::Worker for Worker {
                 redis::cmd("EXEC")
                     .query(self.connection.as_mut().unwrap())
                     .or_restart()?;
-            },
+            }
 
             // Should only be used for undoing blocks because we can't rollback
             // the action due to not having information on the `score`.

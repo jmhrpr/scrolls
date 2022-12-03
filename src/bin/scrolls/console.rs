@@ -179,7 +179,10 @@ impl PlainConsole {
                     log::error!("[{}] stage tether has been dropped", tether.name());
                 }
                 gasket::runtime::TetherState::Blocked(_) => {
-                    log::warn!("[{}] stage tehter is blocked or not reporting state", tether.name());
+                    log::warn!(
+                        "[{}] stage tether is blocked or not reporting state",
+                        tether.name()
+                    );
                 }
                 gasket::runtime::TetherState::Alive(state) => {
                     log::debug!("[{}] stage is alive with state: {:?}", tether.name(), state);

@@ -130,9 +130,9 @@ pub enum StorageAction {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum StorageActionResult {
-    MemberExistence(bool), // SetAdd, SetRem
+    MemberExistence(bool),            // SetAdd, SetRem
     ValueDestruction(Option<String>), // KeyValueSet, KeyValueDelete
-    NotApplicable, // PNCounter, SortedSetIncr, SortedSetAdd
+    NotApplicable,                    // PNCounter, SortedSetIncr, SortedSetAdd
 }
 
 impl StorageAction {
@@ -175,7 +175,12 @@ impl StorageAction {
         StorageAction::KeyValueSet(key, value.into())
     }
 
-    pub fn last_write_wins<V>(prefix: Option<&str>, key: &str, value: V, score: Score) -> StorageAction
+    pub fn last_write_wins<V>(
+        prefix: Option<&str>,
+        key: &str,
+        value: V,
+        score: Score,
+    ) -> StorageAction
     where
         V: Into<Value>,
     {
