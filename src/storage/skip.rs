@@ -117,11 +117,11 @@ impl gasket::runtime::Worker for Worker {
                 let mut last_point = self.last_point.lock().unwrap();
                 *last_point = Some(crosscut::PointArg::from(point));
             }
-            model::StorageAction::BlockUndoStarting(point) => {
-                log::debug!("block undo starting {:?}", point);
+            model::StorageAction::RollbackStarting(point) => {
+                log::debug!("rollback starting {:?}", point);
             }
-            model::StorageAction::BlockUndoFinished(point) => {
-                log::debug!("block undo finishing {:?}", point);
+            model::StorageAction::RollbackFinished(point) => {
+                log::debug!("rollback finishing {:?}", point);
             }
         };
 

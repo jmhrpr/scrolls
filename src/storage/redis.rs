@@ -5,6 +5,7 @@ use gasket::{
     runtime::{spawn_stage, WorkOutcome},
 };
 
+use log::warn;
 use redis::{Commands, ToRedisArgs};
 use serde::Deserialize;
 
@@ -216,9 +217,19 @@ impl gasket::runtime::Worker for Worker {
                 self.connection
                     .as_mut()
                     .unwrap()
-                    .getset(key, value)
+                    .getset(key, value) // returns NIL if not overwriting
                     .or_restart()?;
             }
+
+            // Use `GETDEL` so we can store the deleted key for rollback purposes.
+            model::StorageAction::KeyValueDelete(key) => {
+                log::debug!("key value set [{}]", key);
+
+                redis::cmd("GETDEL")
+                    .arg(key)
+                    .query(self.connection.as_mut().unwrap())
+                    .or_restart()?;
+            },
 
             model::StorageAction::PNCounter(key, delta) => {
                 log::debug!("increasing counter [{}], by [{}]", key, delta);
@@ -252,24 +263,26 @@ impl gasket::runtime::Worker for Worker {
                 );
 
                 // end redis transaction
-                redis::cmd("EXEC")
+                let tx_res: Vec<redis::Value> = redis::cmd("EXEC")
                     .query(self.connection.as_mut().unwrap())
                     .or_restart()?;
+
+                warn!("exec return {:?}", tx_res);
             }
 
             // Rollback-only actions
 
-            model::StorageAction::BlockUndoStarting(_) => {
+            model::StorageAction::RollbackStarting(_) => {
                 // start redis transaction
                 redis::cmd("MULTI")
                     .query(self.connection.as_mut().unwrap())
                     .or_restart()?;
             }
-            model::StorageAction::BlockUndoFinished(_) => {
+            model::StorageAction::RollbackFinished(_point) => {
                 // TODO set cursor to the preceeding block
 
                 // end redis transaction
-                    redis::cmd("EXEC")
+                redis::cmd("EXEC")
                     .query(self.connection.as_mut().unwrap())
                     .or_restart()?;
             },
@@ -285,18 +298,6 @@ impl gasket::runtime::Worker for Worker {
                     .zrem(&key, value)
                     .or_restart()?;
             }
-
-            // Should only be used for undoing blocks because we can't rollback
-            // the action due to not having information on the `value`.
-            model::StorageAction::KeyValueDelete(key) => {
-                log::debug!("key value set [{}]", key);
-
-                self.connection
-                    .as_mut()
-                    .unwrap()
-                    .del(key)
-                    .or_restart()?;
-            },
         };
 
         self.ops_count.inc(1);
