@@ -5,7 +5,7 @@ use pallas::network::miniprotocols::Point;
 // TODO configurable
 const MAX_BUFFER_LEN: usize = 32;
 
-/// A buffer of the recently-processed blocks
+/// A buffer of the recently-processed blocks (TODO update for generic)
 ///
 /// A buffer of recently processed blocks which is used so that we can process
 /// rollbacked blocks in reverse to undo the effects. New blocks are added to
@@ -22,32 +22,41 @@ const MAX_BUFFER_LEN: usize = 32;
 /// recent blocks when a rollback instruction is received. This buffer also
 /// carries the bytes for each block.
 #[derive(Debug)]
-pub struct RollbackBuffer {
-    blocks: VecDeque<PointWithBytes>,
+pub struct RollbackBuffer<T> {
+    blocks: VecDeque<PointWithResult<T>>,
 }
 
+/// A Point with the effects which resulted from that point relevant to the
+/// context of the location of the buffer
+///
+/// For example, each entry in the enrich stage rollback buffer will be a Point
+/// along with the UTxOs which were added and removed from the enrich DB (the
+/// result) as a result of processing the block. In the reducer stage the
+/// result will be the StorageActions which were sent when processing the block
+/// and in the storage stage the result will be the results of performaning the
+/// storage actions.
 #[derive(Debug)]
-pub struct PointWithBytes {
+pub struct PointWithResult<T> {
     point: Point,
-    bytes: Vec<u8>,
+    result: T,
 }
 
 /// If we found the given point in the buffer return all the blocks which came
 /// after that point, starting with the most recent, otherwise reflect that the
 /// point was not found
 #[derive(Debug)]
-pub enum RollbackResult {
-    PointFound(Vec<PointWithBytes>),
+pub enum RollbackResult<T> {
+    PointFound(Vec<PointWithResult<T>>),
     PointNotFound,
 }
 
-impl Default for RollbackBuffer {
+impl<T> Default for RollbackBuffer<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl RollbackBuffer {
+impl<T> RollbackBuffer<T> {
     pub fn new() -> Self {
         Self {
             blocks: VecDeque::new(),
@@ -65,28 +74,28 @@ impl RollbackBuffer {
     }
 
     /// Return the cumulative size of all the blocks held in the buffer
-    pub fn size(&self) -> usize {
-        self.blocks.iter().fold(0, |acc, x| acc + x.bytes.len())
-    }
+    // pub fn size(&self) -> usize {
+    //     self.blocks.iter().fold(0, |acc, x| acc + x.bytes.len())
+    // }
 
-    pub fn latest(&self) -> Option<&PointWithBytes> {
+    pub fn latest(&self) -> Option<&PointWithResult<T>> {
         self.blocks.front()
     }
 
-    pub fn oldest(&self) -> Option<&PointWithBytes> {
+    pub fn oldest(&self) -> Option<&PointWithResult<T>> {
         self.blocks.back()
     }
 
     /// Add a new block to the front of the rollback buffer and pop the oldest
     /// block if the length of the buffer is MAX_BUFFER_LEN.
-    pub fn add_block(&mut self, point: Point, bytes: Vec<u8>) {
-        self.blocks.push_front(PointWithBytes { point, bytes });
+    pub fn add_block(&mut self, point: Point, result: T) {
+        self.blocks.push_front(PointWithResult { point, result });
         self.blocks.truncate(MAX_BUFFER_LEN);
     }
 
     /// Return an iterator over the blocks which have been processed since the
     /// given point and remove those blocks from the buffer
-    pub fn rollback_to_point(&mut self, point: Point) -> RollbackResult {
+    pub fn rollback_to_point(&mut self, point: Point) -> RollbackResult<T> {
         match self.position(&point) {
             Some(p) => RollbackResult::PointFound(self.blocks.drain(..p).collect()),
             None => RollbackResult::PointNotFound,
@@ -104,7 +113,7 @@ mod tests {
         Point::new(i.into(), i.to_le_bytes().to_vec())
     }
 
-    fn build_filled_buffer(n: u8) -> RollbackBuffer {
+    fn build_filled_buffer(n: u8) -> RollbackBuffer<Vec<u8>> {
         let mut buffer = RollbackBuffer::new();
 
         for i in 0..n {
@@ -151,7 +160,7 @@ mod tests {
 
         let to_undo = match buffer.rollback_to_point(rollback_point) {
             RollbackResult::PointFound(xs) => xs,
-            RollbackResult::PointNotFound => panic!("Point not found")
+            RollbackResult::PointNotFound => panic!("Point not found"),
         };
 
         assert_eq!(to_undo.len(), 2);
