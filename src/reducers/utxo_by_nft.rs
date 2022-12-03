@@ -1,5 +1,5 @@
 use pallas::crypto::hash::Hash;
-use pallas::ledger::traverse::{Asset, MultiEraOutput};
+use pallas::ledger::traverse::Asset;
 use pallas::ledger::traverse::{MultiEraBlock, MultiEraTx};
 use serde::Deserialize;
 

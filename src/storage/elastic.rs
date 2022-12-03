@@ -27,7 +27,6 @@ impl From<model::Value> for JsonValue {
             model::Value::Cbor(x) => json!(hex::encode(x)),
             model::Value::BigInt(x) => json!(x),
             model::Value::Json(x) => x,
-            model::Value::BigInt(x) => json!({ "value": x }),
         }
     }
 }
