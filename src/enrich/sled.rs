@@ -19,7 +19,7 @@ use crate::{
     bootstrap, crosscut,
     model::{self, BlockContext},
     prelude::AppliesPolicy,
-    rollback::buffer::RollbackBuffer,
+    rollback::buffer::{RollbackBuffer, RollbackResult},
 };
 
 type InputPort = gasket::messaging::TwoPhaseInputPort<model::RawBlockPayload>;
@@ -97,6 +97,7 @@ pub struct Worker {
     blocks_counter: gasket::metrics::Counter,
 }
 
+#[derive(Clone)]
 struct SledTxValue(u16, Vec<u8>);
 
 impl TryInto<IVec> for SledTxValue {
@@ -299,15 +300,61 @@ impl gasket::runtime::Worker for Worker {
 
                 self.blocks_counter.inc(1);
             }
-            model::RawBlockPayload::RollBack(x) => {
-                // retrieve block for point OR retrieve only UTxOs consumed + produced by the block
+            model::RawBlockPayload::RollBack(rb_point) => {
+                // for all the blocks which succeeded the rollback point, retrieve the consumed/produced utxos
+                let points_and_results = match self.rollback_buffer.rollback_to_point(&rb_point) {
+                    RollbackResult::PointFound(ps) => ps,
+                    RollbackResult::PointNotFound => panic!(), // TODO
+                };
 
-                // re-insert the consumed UTxOs
+                let consumed: Vec<ConsumedUtxo> = points_and_results
+                    .iter()
+                    .map(|p| p.result.clone())
+                    .flat_map(|(c, _)| c)
+                    .collect();
 
-                // remove the produced UTxOs which we added for the rollbacked block
+                let produced: Vec<ProducedUtxo> = points_and_results
+                    .iter()
+                    .map(|p| p.result.clone())
+                    .flat_map(|(_, p)| p)
+                    .collect();
+
+                // let to_undo: Vec<Point> = points_and_results.into_iter().map(|p| p.point).collect(); TODO
+
+                let db = self.db.as_ref().unwrap();
+
+                let mut batch = sled::Batch::default();
+
+                // TODO check this logic:
+
+                // we want to avoid situation where we are inserting utxos which
+                // where consumed in the blocks but were also produced earlier
+                // in the rollbacked blocks. we reinsert all the utxos which were
+                // consumed by txs in the blocks, but this might include utxos
+                // which were also produced by txs in the blocks, so then we
+                // remove all the utxos which were produced by the blocks.
+
+                // re-insert all the UTxOs that the rollback blocks consumed
+                for utxo in consumed {
+                    let key: IVec = utxo.0.as_bytes().into();
+                    let value: IVec = utxo.1.try_into().or_restart()?;
+
+                    batch.insert(key, value)
+                }
+
+                // remove all the UTxOs that the rollbacked blocks produced
+                for utxo in produced {
+                    let key: IVec = utxo.as_bytes().into();
+
+                    batch.remove(key)
+                }
+
+                db.apply_batch(batch)
+                    .map_err(crate::Error::storage)
+                    .or_restart()?;
 
                 self.output
-                    .send(model::EnrichedBlockPayload::roll_back(x))?;
+                    .send(model::EnrichedBlockPayload::roll_back(rb_point))?;
             }
         };
 

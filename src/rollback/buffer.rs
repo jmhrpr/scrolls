@@ -35,10 +35,10 @@ pub struct RollbackBuffer<T> {
 /// result will be the StorageActions which were sent when processing the block
 /// and in the storage stage the result will be the results of performaning the
 /// storage actions.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PointWithResult<T> {
-    point: Point,
-    result: T,
+    pub point: Point,
+    pub result: T,
 }
 
 /// If we found the given point in the buffer return all the blocks which came
@@ -93,10 +93,10 @@ impl<T> RollbackBuffer<T> {
         self.blocks.truncate(MAX_BUFFER_LEN);
     }
 
-    /// Return an iterator over the blocks which have been processed since the
-    /// given point and remove those blocks from the buffer
-    pub fn rollback_to_point(&mut self, point: Point) -> RollbackResult<T> {
-        match self.position(&point) {
+    /// Return an vector of the blocks which have been processed since the
+    /// given point and remove those blocks from the buffer (most recent first)
+    pub fn rollback_to_point(&mut self, point: &Point) -> RollbackResult<T> {
+        match self.position(point) {
             Some(p) => RollbackResult::PointFound(self.blocks.drain(..p).collect()),
             None => RollbackResult::PointNotFound,
         }
@@ -158,7 +158,7 @@ mod tests {
         let mut buffer = build_filled_buffer(6);
         let rollback_point = dummy_point(3);
 
-        let to_undo = match buffer.rollback_to_point(rollback_point) {
+        let to_undo = match buffer.rollback_to_point(&rollback_point) {
             RollbackResult::PointFound(xs) => xs,
             RollbackResult::PointNotFound => panic!("Point not found"),
         };
@@ -179,7 +179,7 @@ mod tests {
         let mut buffer = build_filled_buffer(6);
         let rollback_point = dummy_point(6);
 
-        let res = buffer.rollback_to_point(rollback_point);
+        let res = buffer.rollback_to_point(&rollback_point);
 
         assert_eq!(buffer.len(), 6);
         assert!(matches!(res, RollbackResult::PointNotFound))
