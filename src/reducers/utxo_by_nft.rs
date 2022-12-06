@@ -3,6 +3,7 @@ use pallas::ledger::traverse::Asset;
 use pallas::ledger::traverse::{MultiEraBlock, MultiEraTx};
 use serde::Deserialize;
 
+use crate::model::StorageAction;
 use crate::{crosscut, model};
 
 #[derive(Deserialize)]
@@ -21,24 +22,24 @@ impl Reducer {
         txo_idx: usize,
         policy: Hash<28>,
         asset: Vec<u8>,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         let tx_hash = tx.hash();
 
-        let crdt = model::StorageAction::any_write_wins(
+        let action = StorageAction::any_write_wins(
             self.config.key_prefix.as_deref(),
             format!("{}{}", policy, hex::encode(asset)),
             format!("{}#{}", tx_hash, txo_idx),
         );
 
-        output.send(crdt.into())
+        Ok(actions.push(action))
     }
 
     pub fn reduce_block<'b>(
         &mut self,
         block: &'b MultiEraBlock<'b>,
         _ctx: &model::BlockContext,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         for tx in block.txs().into_iter() {
             for (idx, txo) in tx.produces() {
@@ -47,7 +48,7 @@ impl Reducer {
                         // This check is to avoid indexing fungible tokens. This method will have
                         // several false positives, but it's fast and provides a good approximation.
                         if quantity == 1 {
-                            self.process_received_asset(&tx, idx, policy, asset, output)?;
+                            self.process_received_asset(&tx, idx, policy, asset, actions)?;
                         }
                     }
                 }

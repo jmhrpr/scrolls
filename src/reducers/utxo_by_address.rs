@@ -2,6 +2,7 @@ use pallas::ledger::traverse::MultiEraOutput;
 use pallas::ledger::traverse::{MultiEraBlock, MultiEraTx, OutputRef};
 use serde::Deserialize;
 
+use crate::model::StorageAction;
 use crate::{crosscut, model, prelude::*};
 
 #[derive(Deserialize)]
@@ -20,7 +21,7 @@ impl Reducer {
         &mut self,
         ctx: &model::BlockContext,
         input: &OutputRef,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         let utxo = ctx.find_utxo(input).apply_policy(&self.policy).or_panic()?;
 
@@ -37,13 +38,13 @@ impl Reducer {
             }
         }
 
-        let crdt = model::StorageAction::set_remove(
+        let action = StorageAction::set_remove(
             self.config.key_prefix.as_deref(),
             &address,
             input.to_string(),
         );
 
-        output.send(crdt.into())
+        Ok(actions.push(action))
     }
 
     fn process_produced_txo(
@@ -51,7 +52,7 @@ impl Reducer {
         tx: &MultiEraTx,
         tx_output: &MultiEraOutput,
         output_idx: usize,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         let tx_hash = tx.hash();
         let address = tx_output
@@ -65,28 +66,28 @@ impl Reducer {
             }
         }
 
-        let crdt = model::StorageAction::set_add(
+        let action = StorageAction::set_add(
             self.config.key_prefix.as_deref(),
             &address,
             format!("{}#{}", tx_hash, output_idx),
         );
 
-        output.send(crdt.into())
+        Ok(actions.push(action))
     }
 
     pub fn reduce_block<'b>(
         &mut self,
         block: &'b MultiEraBlock<'b>,
         ctx: &model::BlockContext,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         for tx in block.txs().into_iter() {
             for consumed in tx.consumes().iter().map(|i| i.output_ref()) {
-                self.process_consumed_txo(&ctx, &consumed, output)?;
+                self.process_consumed_txo(&ctx, &consumed, actions)?;
             }
 
             for (idx, produced) in tx.produces() {
-                self.process_produced_txo(&tx, &produced, idx, output)?;
+                self.process_produced_txo(&tx, &produced, idx, actions)?;
             }
         }
 

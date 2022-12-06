@@ -3,6 +3,7 @@ use pallas::ledger::traverse::{MultiEraBlock, OutputRef};
 use serde::Deserialize;
 use std::collections::HashSet;
 
+use crate::model::StorageAction;
 use crate::{crosscut, model, prelude::*};
 
 #[derive(Deserialize)]
@@ -22,7 +23,7 @@ impl Reducer {
         ctx: &model::BlockContext,
         input: &OutputRef,
         seen: &mut HashSet<String>,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         let utxo = ctx.find_utxo(input).apply_policy(&self.policy).or_panic()?;
 
@@ -39,9 +40,9 @@ impl Reducer {
                 None => format!("{}.{}", "txcount_by_address".to_string(), address),
             };
 
-            let crdt = model::StorageAction::PNCounter(key, 1);
+            let action = StorageAction::PNCounter(key, 1);
 
-            output.send(gasket::messaging::Message::from(crdt))?;
+            actions.push(action)
         }
 
         Ok(())
@@ -51,7 +52,7 @@ impl Reducer {
         &mut self,
         tx_output: &MultiEraOutput,
         seen: &mut HashSet<String>,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         let address = tx_output.address().map(|x| x.to_string()).or_panic()?;
 
@@ -61,9 +62,9 @@ impl Reducer {
                 None => format!("{}.{}", "txcount_by_address".to_string(), address),
             };
 
-            let crdt = model::StorageAction::PNCounter(key, 1);
+            let action = model::StorageAction::PNCounter(key, 1);
 
-            output.send(gasket::messaging::Message::from(crdt))?;
+            actions.push(action)
         }
 
         Ok(())
@@ -73,18 +74,18 @@ impl Reducer {
         &mut self,
         block: &'b MultiEraBlock<'b>,
         ctx: &model::BlockContext,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         for tx in block.txs().into_iter() {
             if filter_matches!(self, block, &tx, ctx) {
                 let mut seen = HashSet::new();
 
                 for input in tx.inputs().iter().map(|i| i.output_ref()) {
-                    self.process_inbound_txo(&ctx, &input, &mut seen, output)?;
+                    self.process_inbound_txo(&ctx, &input, &mut seen, actions)?;
                 }
 
                 for (_idx, tx_output) in tx.outputs().iter().enumerate() {
-                    self.process_outbound_txo(tx_output, &mut seen, output)?;
+                    self.process_outbound_txo(tx_output, &mut seen, actions)?;
                 }
             }
         }

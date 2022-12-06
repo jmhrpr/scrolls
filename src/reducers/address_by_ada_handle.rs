@@ -2,6 +2,7 @@ use pallas::ledger::traverse::MultiEraOutput;
 use pallas::ledger::traverse::{Asset, MultiEraBlock};
 use serde::Deserialize;
 
+use crate::model::StorageAction;
 use crate::{model, prelude::*};
 
 #[derive(Deserialize)]
@@ -26,7 +27,7 @@ impl Reducer {
     pub fn process_txo(
         &self,
         txo: &MultiEraOutput,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         let handles: Vec<_> = txo
             .non_ada_assets()
@@ -43,13 +44,13 @@ impl Reducer {
         for handle in handles {
             log::debug!("ada handle match found: ${handle}=>{address}");
 
-            let crdt = model::StorageAction::any_write_wins(
+            let action = model::StorageAction::any_write_wins(
                 self.config.key_prefix.as_deref(),
                 handle,
                 address.clone(),
             );
 
-            output.send(crdt.into())?;
+            actions.push(action)
         }
 
         Ok(())
@@ -59,11 +60,11 @@ impl Reducer {
         &mut self,
         block: &'b MultiEraBlock<'b>,
         _ctx: &model::BlockContext,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         for tx in block.txs().iter() {
             for (_, txo) in tx.produces() {
-                self.process_txo(&txo, output)?;
+                self.process_txo(&txo, actions)?;
             }
         }
 

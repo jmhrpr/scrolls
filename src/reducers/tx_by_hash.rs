@@ -1,6 +1,7 @@
 use pallas::ledger::traverse::{MultiEraBlock, MultiEraTx};
 use serde::Deserialize;
 
+use crate::model::StorageAction;
 use crate::prelude::*;
 use crate::{crosscut, model};
 
@@ -32,31 +33,29 @@ impl Reducer {
     fn send(
         &mut self,
         tx: &MultiEraTx,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         let key_prefix = self.config.key_prefix.as_deref();
-        let crdt = match self.config.projection.unwrap_or_default() {
+        let action = match self.config.projection.unwrap_or_default() {
             Projection::Cbor => {
                 let cbor = tx.encode();
-                model::StorageAction::any_write_wins(key_prefix, tx.hash(), cbor)
+                StorageAction::any_write_wins(key_prefix, tx.hash(), cbor)
             }
             Projection::Json => todo!(),
         };
 
-        output.send(gasket::messaging::Message::from(crdt))?;
-
-        Ok(())
+        Ok(actions.push(action))
     }
 
     pub fn reduce_block<'b>(
         &mut self,
         block: &'b MultiEraBlock<'b>,
         ctx: &model::BlockContext,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         for tx in &block.txs() {
             if filter_matches!(self, block, &tx, ctx) {
-                self.send(tx, output)?;
+                self.send(tx, actions)?;
             }
         }
 

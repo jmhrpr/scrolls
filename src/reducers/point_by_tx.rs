@@ -1,8 +1,7 @@
-use pallas::crypto::hash::Hash;
 use pallas::ledger::traverse::MultiEraBlock;
 use serde::Deserialize;
 
-use crate::model;
+use crate::model::StorageAction;
 
 #[derive(Deserialize)]
 pub struct Config {
@@ -14,36 +13,25 @@ pub struct Reducer {
 }
 
 impl Reducer {
-    fn send_set_add(
-        &mut self,
-        tx_hash: Hash<32>,
-        block_slot: u64,
-        block_hash: Hash<32>,
-        output: &mut super::OutputPort,
-    ) -> Result<(), gasket::error::Error> {
-        let key = match &self.config.key_prefix {
-            Some(prefix) => format!("{}.{}", prefix, tx_hash),
-            None => format!("{}", tx_hash),
-        };
-
-        let member = format!("{},{}", block_slot, block_hash);
-        let crdt = model::StorageAction::SetAdd(key, member);
-
-        output.send(gasket::messaging::Message::from(crdt))?;
-
-        Ok(())
-    }
-
     pub fn reduce_block<'b>(
         &mut self,
         block: &'b MultiEraBlock<'b>,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         let block_hash = block.hash();
         let block_slot = block.slot();
 
         for tx in &block.txs() {
-            self.send_set_add(tx.hash(), block_slot, block_hash, output)?;
+            let key = match &self.config.key_prefix {
+                Some(prefix) => format!("{}.{}", prefix, tx.hash()),
+                None => format!("{}", tx.hash()),
+            };
+
+            let member = format!("{},{}", block_slot, block_hash);
+
+            let action = StorageAction::SetAdd(key, member);
+
+            actions.push(action);
         }
 
         Ok(())

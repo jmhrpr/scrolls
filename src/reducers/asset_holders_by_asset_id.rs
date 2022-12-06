@@ -2,6 +2,7 @@ use pallas::ledger::traverse::{Asset, MultiEraOutput};
 use pallas::ledger::traverse::{MultiEraBlock, OutputRef};
 use serde::Deserialize;
 
+use crate::model::StorageAction;
 use crate::{crosscut, model, prelude::*};
 use pallas::crypto::hash::Hash;
 
@@ -65,7 +66,7 @@ impl Reducer {
         ctx: &model::BlockContext,
         input: &OutputRef,
         epoch_no: u64,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         let utxo = ctx.find_utxo(input).apply_policy(&self.policy).or_panic()?;
 
@@ -84,10 +85,9 @@ impl Reducer {
                         let key = self.config_key(subject, epoch_no);
                         let delta = quantity as i64 * (-1);
 
-                        let crdt =
-                            model::StorageAction::SortedSetIncr(key, address.to_string(), delta);
+                        let action = StorageAction::SortedSetIncr(key, address.to_string(), delta);
 
-                        output.send(gasket::messaging::Message::from(crdt))?;
+                        actions.push(action)
                     }
                 }
                 _ => (),
@@ -101,7 +101,7 @@ impl Reducer {
         &mut self,
         tx_output: &MultiEraOutput,
         epoch_no: u64,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         let address = tx_output
             .address()
@@ -116,10 +116,9 @@ impl Reducer {
                         let key = self.config_key(subject, epoch_no);
                         let delta = quantity as i64;
 
-                        let crdt =
-                            model::StorageAction::SortedSetIncr(key, address.to_string(), delta);
+                        let action = StorageAction::SortedSetIncr(key, address.to_string(), delta);
 
-                        output.send(gasket::messaging::Message::from(crdt))?;
+                        actions.push(action)
                     }
                 }
                 _ => {}
@@ -133,18 +132,18 @@ impl Reducer {
         &mut self,
         block: &'b MultiEraBlock<'b>,
         ctx: &model::BlockContext,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         for tx in block.txs().into_iter() {
             if filter_matches!(self, block, &tx, ctx) {
                 let epoch_no = block_epoch(&self.chain, block);
 
                 for consumed in tx.consumes().iter().map(|i| i.output_ref()) {
-                    self.process_consumed_txo(&ctx, &consumed, epoch_no, output)?;
+                    self.process_consumed_txo(&ctx, &consumed, epoch_no, actions)?;
                 }
 
                 for (_, meo) in tx.produces() {
-                    self.process_produced_txo(&meo, epoch_no, output)?;
+                    self.process_produced_txo(&meo, epoch_no, actions)?;
                 }
             }
         }

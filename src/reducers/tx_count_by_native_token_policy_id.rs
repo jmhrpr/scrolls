@@ -2,8 +2,9 @@ use serde::Deserialize;
 
 use pallas::ledger::traverse::{Feature, MultiEraBlock};
 
+use crate::crosscut;
 use crate::crosscut::epochs::block_epoch;
-use crate::{crosscut, model};
+use crate::model::StorageAction;
 
 #[derive(Deserialize, Copy, Clone)]
 pub enum AggrType {
@@ -46,7 +47,7 @@ impl Reducer {
     pub fn reduce_block(
         &mut self,
         block: &MultiEraBlock,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         if block.era().has_feature(Feature::MultiAssets) {
             let epoch_no = block_epoch(&self.chain, block);
@@ -63,11 +64,10 @@ impl Reducer {
 
                             let key = self.config_key(policy_id, epoch_no);
 
-                            let crdt = model::StorageAction::PNCounter(
-                                key,
-                                number_of_minted_or_destroyed as i64,
-                            );
-                            output.send(gasket::messaging::Message::from(crdt))?;
+                            let action =
+                                StorageAction::PNCounter(key, number_of_minted_or_destroyed as i64);
+
+                            actions.push(action)
                         }
                     }
                 }

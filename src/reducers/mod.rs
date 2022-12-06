@@ -4,10 +4,13 @@ use gasket::runtime::spawn_stage;
 use pallas::ledger::traverse::MultiEraBlock;
 use serde::Deserialize;
 
-use crate::{bootstrap, crosscut, model};
+use crate::{
+    bootstrap, crosscut,
+    model::{self, StorageAction},
+};
 
 type InputPort = gasket::messaging::TwoPhaseInputPort<model::EnrichedBlockPayload>;
-type OutputPort = gasket::messaging::OutputPort<model::StorageAction>;
+type OutputPort = gasket::messaging::OutputPort<StorageAction>;
 
 pub mod macros;
 pub mod point_by_tx;
@@ -177,33 +180,33 @@ impl Reducer {
         &mut self,
         block: &'b MultiEraBlock<'b>,
         ctx: &model::BlockContext,
-        output: &mut OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         match self {
-            Reducer::UtxoByAddress(x) => x.reduce_block(block, ctx, output),
-            Reducer::PointByTx(x) => x.reduce_block(block, output),
-            Reducer::PoolByStake(x) => x.reduce_block(block, output),
+            Reducer::UtxoByAddress(x) => x.reduce_block(block, ctx, actions),
+            Reducer::PointByTx(x) => x.reduce_block(block, actions),
+            Reducer::PoolByStake(x) => x.reduce_block(block, actions),
 
             #[cfg(feature = "unstable")]
-            Reducer::AddressByTxo(x) => x.reduce_block(block, ctx, output),
+            Reducer::AddressByTxo(x) => x.reduce_block(block, ctx, actions),
             #[cfg(feature = "unstable")]
-            Reducer::BalanceByAddress(x) => x.reduce_block(block, ctx, output),
+            Reducer::BalanceByAddress(x) => x.reduce_block(block, ctx, actions),
             #[cfg(feature = "unstable")]
-            Reducer::TxByHash(x) => x.reduce_block(block, ctx, output),
+            Reducer::TxByHash(x) => x.reduce_block(block, ctx, actions),
             #[cfg(feature = "unstable")]
-            Reducer::TxCountByAddress(x) => x.reduce_block(block, ctx, output),
+            Reducer::TxCountByAddress(x) => x.reduce_block(block, ctx, actions),
             #[cfg(feature = "unstable")]
-            Reducer::BlockHeaderByHash(x) => x.reduce_block(block, ctx, output),
+            Reducer::BlockHeaderByHash(x) => x.reduce_block(block, ctx, actions),
             #[cfg(feature = "unstable")]
-            Reducer::AddressByAdaHandle(x) => x.reduce_block(block, ctx, output),
+            Reducer::AddressByAdaHandle(x) => x.reduce_block(block, ctx, actions),
             #[cfg(feature = "unstable")]
-            Reducer::LastBlockParameters(x) => x.reduce_block(block, output),
+            Reducer::LastBlockParameters(x) => x.reduce_block(block, actions),
             #[cfg(feature = "unstable")]
-            Reducer::TxCountByNativeTokenPolicyId(x) => x.reduce_block(block, output),
+            Reducer::TxCountByNativeTokenPolicyId(x) => x.reduce_block(block, actions),
             #[cfg(feature = "unstable")]
-            Reducer::AssetHoldersByAssetId(x) => x.reduce_block(block, ctx, output),
+            Reducer::AssetHoldersByAssetId(x) => x.reduce_block(block, ctx, actions),
             #[cfg(feature = "unstable")]
-            Reducer::UtxoByNft(x) => x.reduce_block(block, ctx, output),
+            Reducer::UtxoByNft(x) => x.reduce_block(block, ctx, actions),
         }
     }
 }

@@ -3,7 +3,7 @@ use pallas::ledger::primitives::alonzo::{PoolKeyhash, StakeCredential};
 use pallas::ledger::traverse::MultiEraBlock;
 use serde::Deserialize;
 
-use crate::model;
+use crate::model::StorageAction;
 
 #[derive(Deserialize)]
 pub struct Config {
@@ -15,12 +15,12 @@ pub struct Reducer {
 }
 
 impl Reducer {
-    fn send_key_write(
+    fn key_value_write(
         &mut self,
         cred: &StakeCredential,
         pool: &PoolKeyhash,
         slot: u64,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         let key = match cred {
             StakeCredential::AddrKeyhash(x) => x.to_string(),
@@ -29,22 +29,20 @@ impl Reducer {
 
         let value = pool.to_string();
 
-        let crdt = model::StorageAction::last_write_wins(
+        let action = StorageAction::last_write_wins(
             self.config.key_prefix.as_deref(),
             &key,
             value,
             slot,
         );
 
-        output.send(gasket::messaging::Message::from(crdt))?;
-
-        Ok(())
+        Ok(actions.push(action))
     }
 
     pub fn reduce_block<'b>(
         &mut self,
         block: &'b MultiEraBlock<'b>,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         let slot = block.slot();
 
@@ -53,7 +51,7 @@ impl Reducer {
                 for cert in tx.certs() {
                     if let Some(cert) = cert.as_alonzo() {
                         if let alonzo::Certificate::StakeDelegation(cred, pool) = cert {
-                            self.send_key_write(cred, pool, slot, output)?;
+                            self.key_value_write(cred, pool, slot, actions)?;
                         }
                     }
                 }

@@ -1,16 +1,24 @@
 use pallas::ledger::traverse::MultiEraBlock;
 
-use crate::{crosscut, model, prelude::*};
+use crate::{
+    crosscut,
+    model::{self, StorageAction},
+    prelude::*,
+    rollback::buffer::RollbackBuffer,
+};
 
 use super::Reducer;
 
 type InputPort = gasket::messaging::TwoPhaseInputPort<model::EnrichedBlockPayload>;
 type OutputPort = gasket::messaging::OutputPort<model::StorageAction>;
 
+type ReducersResult = Vec<StorageAction>;
+
 pub struct Worker {
     input: InputPort,
     output: OutputPort,
     reducers: Vec<Reducer>,
+    rollback_buffer: RollbackBuffer<ReducersResult>,
     policy: crosscut::policies::RuntimePolicy,
     ops_count: gasket::metrics::Counter,
     last_block: gasket::metrics::Gauge,
@@ -27,6 +35,7 @@ impl Worker {
             reducers,
             input,
             output,
+            rollback_buffer: Default::default(),
             policy,
             ops_count: Default::default(),
             last_block: Default::default(),
@@ -54,8 +63,13 @@ impl Worker {
             model::StorageAction::block_starting(&block),
         ))?;
 
+        let mut actions = Vec::new();
+
+        // Instead of passing the output port to the reducers, we pass a vec which
+        // we will add all the storage actions to, then we will send these down
+        // the outport port later.
         for reducer in self.reducers.iter_mut() {
-            reducer.reduce_block(&block, ctx, &mut self.output)?;
+            reducer.reduce_block(&block, ctx, &mut actions)?;
             self.ops_count.inc(1);
         }
 

@@ -2,8 +2,8 @@ use pallas::ledger::traverse::MultiEraBlock;
 use serde::Deserialize;
 
 use crate::crosscut::epochs::block_epoch;
-use crate::model::Value;
-use crate::{crosscut, model};
+use crate::model::{StorageAction, Value};
+use crate::crosscut;
 
 #[derive(Deserialize)]
 pub struct Config {
@@ -20,129 +20,117 @@ impl Reducer {
         &mut self,
         block: &MultiEraBlock,
         key: &str,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         let epoch_no = block_epoch(&self.chain, block);
 
-        let crdt = model::StorageAction::KeyValueSet(
+        let action = StorageAction::KeyValueSet(
             format!("{}.{}", key, "epoch_no"),
             Value::BigInt(epoch_no as i128),
         );
 
-        output.send(gasket::messaging::Message::from(crdt))?;
-
-        Result::Ok(())
+        Ok(actions.push(action))
     }
 
     pub fn current_height(
         &mut self,
         block: &MultiEraBlock,
         key: &str,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
-        let crdt = model::StorageAction::KeyValueSet(
+        let action = StorageAction::KeyValueSet(
             format!("{}.{}", key, "height"),
             Value::BigInt(block.number() as i128),
         );
 
-        output.send(gasket::messaging::Message::from(crdt))?;
-
-        Result::Ok(())
+        Ok(actions.push(action))
     }
 
     pub fn current_slot(
         &mut self,
         block: &MultiEraBlock,
         key: &str,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
-        let crdt = model::StorageAction::KeyValueSet(
+        let action = StorageAction::KeyValueSet(
             format!("{}.{}", key, "slot_no"),
             Value::BigInt(block.slot() as i128),
         );
 
-        output.send(gasket::messaging::Message::from(crdt))?;
-
-        Result::Ok(())
+        Ok(actions.push(action))
     }
 
     pub fn current_block_hash(
         &mut self,
         block: &MultiEraBlock,
         key: &str,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
-        let crdt = model::StorageAction::KeyValueSet(
+        let action = StorageAction::KeyValueSet(
             format!("{}.{}", key, "block_hash"),
             Value::String(block.hash().to_string()),
         );
 
-        output.send(gasket::messaging::Message::from(crdt))?;
-
-        Result::Ok(())
+        Ok(actions.push(action))
     }
 
     pub fn current_block_era(
         &mut self,
         block: &MultiEraBlock,
         key: &str,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
-        let crdt = model::StorageAction::KeyValueSet(
+        let action = StorageAction::KeyValueSet(
             format!("{}.{}", key, "block_era"),
             Value::String(block.era().to_string()),
         );
 
-        output.send(gasket::messaging::Message::from(crdt))?;
-
-        Result::Ok(())
+        Ok(actions.push(action))
     }
 
     pub fn current_block_last_tx_hash(
         &mut self,
         block: &MultiEraBlock,
         key: &str,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         if !block.is_empty() {
-            let crdt = model::StorageAction::KeyValueSet(
+            let action = StorageAction::KeyValueSet(
                 format!("{}.{}", key, "first_transaction_hash"),
                 Value::String(block.txs().first().unwrap().hash().to_string()),
             );
 
-            output.send(gasket::messaging::Message::from(crdt))?;
+            actions.push(action);
 
-            let crdt = model::StorageAction::KeyValueSet(
+            let action = StorageAction::KeyValueSet(
                 format!("{}.{}", key, "last_transaction_hash"),
                 Value::String(block.txs().last().unwrap().hash().to_string()),
             );
 
-            output.send(gasket::messaging::Message::from(crdt))?;
+            actions.push(action);
         }
 
-        Result::Ok(())
+        Ok(())
     }
 
     pub fn current_block_last_tx_count(
         &mut self,
         block: &MultiEraBlock,
         key: &str,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
-        let crdt = model::StorageAction::KeyValueSet(
+        let action = StorageAction::KeyValueSet(
             format!("{}.{}", key, "transactions_count"),
             Value::BigInt(block.tx_count() as i128),
         );
 
-        output.send(gasket::messaging::Message::from(crdt))?;
-
-        Result::Ok(())
+        Ok(actions.push(action))
     }
 
     pub fn reduce_block<'b>(
         &mut self,
         block: &'b MultiEraBlock<'b>,
-        output: &mut super::OutputPort,
+        actions: &mut Vec<StorageAction>,
     ) -> Result<(), gasket::error::Error> {
         let def_key_prefix = "last_block";
 
@@ -151,13 +139,13 @@ impl Reducer {
             None => format!("{}", def_key_prefix.to_string()),
         };
 
-        self.current_epoch(block, &key, output)?;
-        self.current_height(block, &key, output)?;
-        self.current_slot(block, &key, output)?;
-        self.current_block_hash(block, &key, output)?;
-        self.current_block_era(block, &key, output)?;
-        self.current_block_last_tx_hash(block, &key, output)?;
-        self.current_block_last_tx_count(block, &key, output)?;
+        self.current_epoch(block, &key, actions)?;
+        self.current_height(block, &key, actions)?;
+        self.current_slot(block, &key, actions)?;
+        self.current_block_hash(block, &key, actions)?;
+        self.current_block_era(block, &key, actions)?;
+        self.current_block_last_tx_hash(block, &key, actions)?;
+        self.current_block_last_tx_count(block, &key, actions)?;
 
         Ok(())
     }
