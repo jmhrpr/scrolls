@@ -75,6 +75,12 @@ impl EnrichedBlockPayload {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum StorageActionPayload {
+    RollForward(Point, Vec<StorageAction>),
+    RollBack(Point, Vec<StorageAction>),
+}
+
 pub type Set = String;
 pub type Member = String;
 pub type Key = String;

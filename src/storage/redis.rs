@@ -9,9 +9,12 @@ use log::warn;
 use redis::{Commands, ToRedisArgs};
 use serde::Deserialize;
 
-use crate::{bootstrap, crosscut, model};
+use crate::{
+    bootstrap, crosscut,
+    model::{self, StorageAction, StorageActionPayload},
+};
 
-type InputPort = gasket::messaging::TwoPhaseInputPort<model::StorageAction>;
+type InputPort = gasket::messaging::TwoPhaseInputPort<model::StorageActionPayload>;
 
 impl ToRedisArgs for model::Value {
     fn write_redis_args<W>(&self, out: &mut W)
@@ -121,6 +124,184 @@ pub struct Worker {
     input: InputPort,
 }
 
+impl Worker {
+    fn apply_actions(&mut self, actions: Vec<StorageAction>) -> Result<(), gasket::error::Error> {
+        for action in actions {
+            match action {
+                // TODO move out of `actions`?
+                StorageAction::BlockStarting(_) => {
+                    // start redis transaction
+                    redis::cmd("MULTI")
+                        .query(self.connection.as_mut().unwrap())
+                        .or_restart()?;
+                }
+
+                // When rollbacking we need to know that the SetAdd created a new entry
+                // otherwise we would have the situation where we we are adding a value
+                // to the set which is already contained (so the set is unchanged)
+                // but when we rollback we do the reverse of the add and remove the value
+                // even though the value was already there before this add action.
+                StorageAction::SetAdd(key, value) => {
+                    log::debug!("adding to set [{}], value [{}]", key, value);
+
+                    redis::cmd("SADD")
+                        .arg(key)
+                        .arg(value)
+                        .query(self.connection.as_mut().unwrap())
+                        .or_restart()?;
+                }
+
+                // We need to know whether or not the remove actually removed a value
+                // or if the value didn't actually exist, to avoid re-adding a value
+                // on rollback which wasn't actually present.
+                StorageAction::SetRemove(key, value) => {
+                    log::debug!("removing from set [{}], value [{}]", key, value);
+
+                    self.connection
+                        .as_mut()
+                        .unwrap()
+                        .srem(key, value)
+                        .or_restart()?;
+                }
+
+                // We don't need to know if the value already existed because we just
+                // treat 0 as the same as the value entry not existing (and remove them).
+                StorageAction::SortedSetIncr(key, value, delta) => {
+                    log::debug!(
+                        "sorted set incr [{}], value [{}], delta [{}]",
+                        key,
+                        value,
+                        delta
+                    );
+
+                    self.connection
+                        .as_mut()
+                        .unwrap()
+                        .zincr(&key, value, delta)
+                        .or_restart()?;
+
+                    // TODO double action bad
+                    if delta < 0 {
+                        // removal of 0 score members (garbage collection)
+                        self.connection
+                            .as_mut()
+                            .unwrap()
+                            .zrembyscore(&key, 0, 0)
+                            .or_restart()?;
+                    }
+                }
+
+                // We have to disable score overwrites (or return a value like with getset)
+                // otherwise we won't be able to return the score to what it was before
+                // on a rollback.
+                StorageAction::SortedSetAdd(key, member, score) => {
+                    log::debug!("sorted set add [{}] with score [{}]", key, score);
+
+                    redis::cmd("ZADD")
+                        .arg(key)
+                        .arg("NX") // no overwrites
+                        .arg(score)
+                        .arg(member)
+                        .query(self.connection.as_mut().unwrap())
+                        .or_restart()?;
+                }
+
+                // We need to store what the original value was, so we will use "get_set"
+                // which will return the value being overwritten, and will can use this
+                // overwritten value if we need to rollback.
+                StorageAction::KeyValueSet(key, value) => {
+                    log::debug!("key value set [{}]", key);
+
+                    self.connection
+                        .as_mut()
+                        .unwrap()
+                        .getset(key, value) // returns NIL if not overwriting
+                        .or_restart()?;
+                }
+
+                // Use `GETDEL` so we can store the deleted key for rollback purposes.
+                StorageAction::KeyValueDelete(key) => {
+                    log::debug!("key value set [{}]", key);
+
+                    redis::cmd("GETDEL")
+                        .arg(key)
+                        .query(self.connection.as_mut().unwrap())
+                        .or_restart()?;
+                }
+
+                StorageAction::PNCounter(key, delta) => {
+                    log::debug!("increasing counter [{}], by [{}]", key, delta);
+
+                    self.connection
+                        .as_mut()
+                        .unwrap()
+                        .incr(key, delta)
+                        .or_restart()?;
+                }
+
+                // We need to rollback the cursor, but maybe we can just do this when
+                // we are processing the blocks in reverse. TODO
+                // For now we getset the cursor so we can store the overwritten value.
+                // Alternatively we could just set the cursor to the point specified
+                // in the rollback message, at the end of the redis transaction (if
+                // the tx last alls blocks).
+                StorageAction::BlockFinished(point) => {
+                    let cursor_str = crosscut::PointArg::from(point).to_string();
+
+                    self.connection
+                        .as_mut()
+                        .unwrap()
+                        .getset(self.config.cursor_key(), &cursor_str)
+                        .or_restart()?;
+
+                    log::info!(
+                        "new cursor saved to redis {} {}",
+                        &self.config.cursor_key(),
+                        &cursor_str
+                    );
+
+                    // end redis transaction
+                    let tx_res: Vec<redis::Value> = redis::cmd("EXEC")
+                        .query(self.connection.as_mut().unwrap())
+                        .or_restart()?;
+
+                    warn!("exec return {:?}", tx_res);
+                }
+
+                // Rollback-only actions
+                StorageAction::RollbackStarting(_) => {
+                    // start redis transaction
+                    redis::cmd("MULTI")
+                        .query(self.connection.as_mut().unwrap())
+                        .or_restart()?;
+                }
+                StorageAction::RollbackFinished(_point) => {
+                    // TODO set cursor to the preceeding block
+
+                    // end redis transaction
+                    redis::cmd("EXEC")
+                        .query(self.connection.as_mut().unwrap())
+                        .or_restart()?;
+                }
+
+                // Should only be used for undoing blocks because we can't rollback
+                // the action due to not having information on the `score`.
+                StorageAction::SortedSetRem(key, value) => {
+                    log::debug!("sorted set remove [{}]", key);
+
+                    self.connection
+                        .as_mut()
+                        .unwrap()
+                        .zrem(&key, value)
+                        .or_restart()?;
+                }
+            };
+        }
+
+        Ok(())
+    }
+}
+
 impl gasket::runtime::Worker for Worker {
     fn metrics(&self) -> gasket::metrics::Registry {
         gasket::metrics::Builder::new()
@@ -129,176 +310,21 @@ impl gasket::runtime::Worker for Worker {
     }
 
     fn work(&mut self) -> gasket::runtime::WorkResult {
+        // receive the MsgRollForward/Backwards and list of storage actions
         let msg = self.input.recv_or_idle()?;
 
         match msg.payload {
-            model::StorageAction::BlockStarting(_) => {
-                // start redis transaction
-                redis::cmd("MULTI")
-                    .query(self.connection.as_mut().unwrap())
-                    .or_restart()?;
+            StorageActionPayload::RollForward(_point, actions) => {
+                // execute the
+                self.apply_actions(actions)?;
             }
-
-            // When rollbacking we need to know that the SetAdd created a new entry
-            // otherwise we would have the situation where we we are adding a value
-            // to the set which is already contained (so the set is unchanged)
-            // but when we rollback we do the reverse of the add and remove the value
-            // even though the value was already there before this add action.
-            model::StorageAction::SetAdd(key, value) => {
-                log::debug!("adding to set [{}], value [{}]", key, value);
-
-                redis::cmd("SADD")
-                    .arg(key)
-                    .arg(value)
-                    .query(self.connection.as_mut().unwrap())
-                    .or_restart()?;
+            StorageActionPayload::RollBack(point, _) => {
+                warn!("rollback requested to {:?}", point)
+                // TODO set cursor to rollback point
             }
+        }
 
-            // We need to know whether or not the remove actually removed a value
-            // or if the value didn't actually exist, to avoid re-adding a value
-            // on rollback which wasn't actually present.
-            model::StorageAction::SetRemove(key, value) => {
-                log::debug!("removing from set [{}], value [{}]", key, value);
-
-                self.connection
-                    .as_mut()
-                    .unwrap()
-                    .srem(key, value)
-                    .or_restart()?;
-            }
-
-            // We don't need to know if the value already existed because we just
-            // treat 0 as the same as the value entry not existing (and remove them).
-            model::StorageAction::SortedSetIncr(key, value, delta) => {
-                log::debug!(
-                    "sorted set incr [{}], value [{}], delta [{}]",
-                    key,
-                    value,
-                    delta
-                );
-
-                self.connection
-                    .as_mut()
-                    .unwrap()
-                    .zincr(&key, value, delta)
-                    .or_restart()?;
-
-                if delta < 0 {
-                    // removal of 0 score members (garbage collection)
-                    self.connection
-                        .as_mut()
-                        .unwrap()
-                        .zrembyscore(&key, 0, 0)
-                        .or_restart()?;
-                }
-            }
-
-            // We have to disable score overwrites (or return a value like with getset)
-            // otherwise we won't be able to return the score to what it was before
-            // on a rollback.
-            model::StorageAction::SortedSetAdd(key, member, score) => {
-                log::debug!("sorted set add [{}] with score [{}]", key, score);
-
-                redis::cmd("ZADD")
-                    .arg(key)
-                    .arg("NX") // no overwrites
-                    .arg(score)
-                    .arg(member)
-                    .query(self.connection.as_mut().unwrap())
-                    .or_restart()?;
-            }
-
-            // We need to store what the original value was, so we will use "get_set"
-            // which will return the value being overwritten, and will can use this
-            // overwritten value if we need to rollback.
-            model::StorageAction::KeyValueSet(key, value) => {
-                log::debug!("key value set [{}]", key);
-
-                self.connection
-                    .as_mut()
-                    .unwrap()
-                    .getset(key, value) // returns NIL if not overwriting
-                    .or_restart()?;
-            }
-
-            // Use `GETDEL` so we can store the deleted key for rollback purposes.
-            model::StorageAction::KeyValueDelete(key) => {
-                log::debug!("key value set [{}]", key);
-
-                redis::cmd("GETDEL")
-                    .arg(key)
-                    .query(self.connection.as_mut().unwrap())
-                    .or_restart()?;
-            }
-
-            model::StorageAction::PNCounter(key, delta) => {
-                log::debug!("increasing counter [{}], by [{}]", key, delta);
-
-                self.connection
-                    .as_mut()
-                    .unwrap()
-                    .incr(key, delta)
-                    .or_restart()?;
-            }
-
-            // We need to rollback the cursor, but maybe we can just do this when
-            // we are processing the blocks in reverse. TODO
-            // For now we getset the cursor so we can store the overwritten value.
-            // Alternatively we could just set the cursor to the point specified
-            // in the rollback message, at the end of the redis transaction (if
-            // the tx last alls blocks).
-            model::StorageAction::BlockFinished(point) => {
-                let cursor_str = crosscut::PointArg::from(point).to_string();
-
-                self.connection
-                    .as_mut()
-                    .unwrap()
-                    .getset(self.config.cursor_key(), &cursor_str)
-                    .or_restart()?;
-
-                log::info!(
-                    "new cursor saved to redis {} {}",
-                    &self.config.cursor_key(),
-                    &cursor_str
-                );
-
-                // end redis transaction
-                let tx_res: Vec<redis::Value> = redis::cmd("EXEC")
-                    .query(self.connection.as_mut().unwrap())
-                    .or_restart()?;
-
-                warn!("exec return {:?}", tx_res);
-            }
-
-            // Rollback-only actions
-            model::StorageAction::RollbackStarting(_) => {
-                // start redis transaction
-                redis::cmd("MULTI")
-                    .query(self.connection.as_mut().unwrap())
-                    .or_restart()?;
-            }
-            model::StorageAction::RollbackFinished(_point) => {
-                // TODO set cursor to the preceeding block
-
-                // end redis transaction
-                redis::cmd("EXEC")
-                    .query(self.connection.as_mut().unwrap())
-                    .or_restart()?;
-            }
-
-            // Should only be used for undoing blocks because we can't rollback
-            // the action due to not having information on the `score`.
-            model::StorageAction::SortedSetRem(key, value) => {
-                log::debug!("sorted set remove [{}]", key);
-
-                self.connection
-                    .as_mut()
-                    .unwrap()
-                    .zrem(&key, value)
-                    .or_restart()?;
-            }
-        };
-
+        // TODO fix
         self.ops_count.inc(1);
         self.input.commit();
 

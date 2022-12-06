@@ -6,11 +6,11 @@ use serde::Deserialize;
 
 use crate::{
     bootstrap, crosscut,
-    model::{self, StorageAction},
+    model::{self, StorageAction, StorageActionPayload},
 };
 
 type InputPort = gasket::messaging::TwoPhaseInputPort<model::EnrichedBlockPayload>;
-type OutputPort = gasket::messaging::OutputPort<StorageAction>;
+type OutputPort = gasket::messaging::OutputPort<StorageActionPayload>;
 
 pub mod macros;
 pub mod point_by_tx;

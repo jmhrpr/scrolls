@@ -18,7 +18,7 @@ use crate::{
     Error,
 };
 
-type InputPort = gasket::messaging::TwoPhaseInputPort<model::StorageAction>;
+type InputPort = gasket::messaging::TwoPhaseInputPort<model::StorageActionPayload>;
 
 impl From<model::Value> for JsonValue {
     fn from(other: model::Value) -> JsonValue {
@@ -134,22 +134,24 @@ fn recv_batch(input: &mut InputPort) -> Result<Batch, gasket::error::Error> {
     loop {
         match input.recv_or_idle() {
             Ok(x) => match x.payload {
-                StorageAction::BlockStarting(_) => (),
-                StorageAction::BlockFinished(_) => {
-                    batch.block_end = Some(x.payload);
-                    return Ok(batch);
-                }
-                _ => {
-                    batch.items.push(x.payload);
-                }
+                // TODO
+                // StorageAction::BlockStarting(_) => (),
+                // StorageAction::BlockFinished(_) => {
+                //     batch.block_end = Some(x.payload);
+                //     return Ok(batch);
+                // }
+                // _ => {
+                //     batch.items.push(x.payload);
+                // }
+                _ => todo!(),
             },
             Err(gasket::error::Error::RecvIdle) => return Ok(batch),
             Err(err) => return Err(err),
         };
 
-        if batch.items.len() >= BATCH_SIZE {
-            return Ok(batch);
-        }
+        // if batch.items.len() >= BATCH_SIZE {
+        //     return Ok(batch);
+        // }
     }
 }
 
