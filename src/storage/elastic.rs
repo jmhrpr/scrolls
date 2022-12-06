@@ -159,17 +159,17 @@ type ESResult = Result<Response, elasticsearch::Error>;
 
 async fn apply_command(cmd: StorageAction, client: &Elasticsearch) -> Option<ESResult> {
     match cmd {
-        StorageAction::BlockStarting(_) => None,
+        // StorageAction::BlockStarting(_) => None,
         StorageAction::KeyValueSet(key, value) => client
             .index(elasticsearch::IndexParts::IndexId("scrolls", &key))
             .body::<JsonValue>(json!({ "key": &key, "value": JsonValue::from(value) }))
             .send()
             .await
             .into(),
-        StorageAction::BlockFinished(_) => {
-            log::warn!("Elasticsearch storage doesn't support cursors ATM");
-            None
-        }
+        // StorageAction::BlockFinished(_) => {
+        //     log::warn!("Elasticsearch storage doesn't support cursors ATM");
+        //     None
+        // }
         _ => todo!(),
     }
 }

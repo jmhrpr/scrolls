@@ -117,9 +117,8 @@ impl From<serde_json::Value> for Value {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum StorageAction {
-    BlockStarting(Point),
-    BlockFinished(Point),
-
+    // BlockStarting(Point),
+    // BlockFinished(Point),
     SetAdd(Set, Member),
     SetRemove(Set, Member),
 
@@ -132,27 +131,26 @@ pub enum StorageAction {
     KeyValueDelete(Key),
 
     PNCounter(Key, Delta),
-
-    RollbackStarting(Point),
-    RollbackFinished(Point),
+    // RollbackStarting(Point),
+    // RollbackFinished(Point),
 }
 
-#[derive(Clone, Debug)]
-#[non_exhaustive]
-pub enum StorageActionResult {
-    MemberExistence(bool),            // SetAdd, SetRem
-    ValueDestruction(Option<String>), // KeyValueSet, KeyValueDelete
-    NotApplicable,                    // PNCounter, SortedSetIncr, SortedSetAdd
-}
+// #[derive(Clone, Debug)]
+// #[non_exhaustive]
+// pub enum StorageActionResult {
+//     MemberExistence(bool),            // SetAdd, SetRem
+//     ValueDestruction(Option<String>), // KeyValueSet, KeyValueDelete
+//     NotApplicable,                    // PNCounter, SortedSetIncr, SortedSetAdd
+// }
 
 impl StorageAction {
-    pub fn block_starting(block: &MultiEraBlock) -> StorageAction {
-        let hash = block.hash();
-        let slot = block.slot();
-        let point = Point::Specific(slot, hash.to_vec());
+    // pub fn block_starting(block: &MultiEraBlock) -> StorageAction {
+    //     let hash = block.hash();
+    //     let slot = block.slot();
+    //     let point = Point::Specific(slot, hash.to_vec());
 
-        StorageAction::BlockStarting(point)
-    }
+    //     StorageAction::BlockStarting(point)
+    // }
 
     pub fn set_add(prefix: Option<&str>, key: &str, member: String) -> StorageAction {
         let key = match prefix {
@@ -202,44 +200,10 @@ impl StorageAction {
         StorageAction::SortedSetAdd(key, value.into(), score)
     }
 
-    pub fn block_finished(block: &MultiEraBlock) -> StorageAction {
-        let hash = block.hash();
-        let slot = block.slot();
-        let point = Point::Specific(slot, hash.to_vec());
-        StorageAction::BlockFinished(point)
-    }
-
-    /// Given a storage action, return a storage actions which does the inverse effects
-    pub fn inverse(&self) -> StorageAction {
-        match self.clone() {
-            StorageAction::BlockStarting(_point) => todo!(),
-            StorageAction::BlockFinished(_point) => todo!(),
-
-            // Use return value to know if member already existed
-            StorageAction::SetAdd(key, member) => StorageAction::SetRemove(key, member),
-            // Use return value to know if a member existed and was therefore deleted
-            StorageAction::SetRemove(key, member) => StorageAction::SetAdd(key, member),
-
-            // 0 scores must be treated the same as missing entries
-            StorageAction::SortedSetIncr(key, value, delta) => {
-                StorageAction::SortedSetIncr(key, value, delta * (-1))
-            }
-
-            // Do not allow score overwrites (NX mode) SortedSetAdd
-            StorageAction::SortedSetAdd(key, value, _score) => {
-                StorageAction::SortedSetRem(key, value)
-            }
-
-            // Use return value to know the overwritten member Store the overwritten value (getset)
-            StorageAction::KeyValueSet(key, _value) => StorageAction::KeyValueDelete(key),
-
-            StorageAction::PNCounter(key, delta) => StorageAction::PNCounter(key, delta * (-1)),
-
-            // These actions cannot be rollbacked TODO error
-            StorageAction::RollbackStarting(_) => unreachable!(),
-            StorageAction::RollbackFinished(_) => unreachable!(),
-            StorageAction::SortedSetRem(_, _) => unreachable!(),
-            StorageAction::KeyValueDelete(_) => unreachable!(),
-        }
-    }
+    // pub fn block_finished(block: &MultiEraBlock) -> StorageAction {
+    //     let hash = block.hash();
+    //     let slot = block.slot();
+    //     let point = Point::Specific(slot, hash.to_vec());
+    //     StorageAction::BlockFinished(point)
+    // }
 }

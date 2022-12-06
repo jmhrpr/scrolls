@@ -82,9 +82,9 @@ impl Worker {
     fn apply_actions(&mut self, actions: Vec<StorageAction>) -> Result<(), gasket::error::Error> {
         for action in actions {
             match action {
-                model::StorageAction::BlockStarting(point) => {
-                    log::debug!("block started {:?}", point);
-                }
+                // model::StorageAction::BlockStarting(point) => {
+                //     log::debug!("block started {:?}", point);
+                // }
                 model::StorageAction::SetAdd(key, value) => {
                     log::debug!("adding to set [{}], value [{}]", key, value);
                 }
@@ -108,18 +108,17 @@ impl Worker {
                 }
                 model::StorageAction::PNCounter(key, value) => {
                     log::debug!("increasing counter [{}], by [{}]", key, value);
-                }
-                model::StorageAction::BlockFinished(point) => {
-                    log::debug!("block finished {:?}", point);
-                    let mut last_point = self.last_point.lock().unwrap();
-                    *last_point = Some(crosscut::PointArg::from(point));
-                }
-                model::StorageAction::RollbackStarting(point) => {
-                    log::debug!("rollback starting {:?}", point);
-                }
-                model::StorageAction::RollbackFinished(point) => {
-                    log::debug!("rollback finishing {:?}", point);
-                }
+                } // model::StorageAction::BlockFinished(point) => {
+                  //     log::debug!("block finished {:?}", point);
+                  //     let mut last_point = self.last_point.lock().unwrap();
+                  //     *last_point = Some(crosscut::PointArg::from(point));
+                  // }
+                  // model::StorageAction::RollbackStarting(point) => {
+                  //     log::debug!("rollback starting {:?}", point);
+                  // }
+                  // model::StorageAction::RollbackFinished(point) => {
+                  //     log::debug!("rollback finishing {:?}", point);
+                  // }
             };
         }
 

@@ -62,7 +62,7 @@ impl Worker {
 
         let mut actions = Vec::new();
 
-        actions.push(StorageAction::block_starting(&block));
+        // actions.push(StorageAction::block_starting(&block));
 
         // Instead of passing the output port to the reducers, we pass a vec which
         // we will add all the storage actions to, then we will send these down
@@ -72,7 +72,7 @@ impl Worker {
             self.ops_count.inc(1);
         }
 
-        actions.push(StorageAction::block_finished(&block));
+        // actions.push(StorageAction::block_finished(&block));
 
         // TODO merge related StorageActions in actions to reduce number of writes?
 

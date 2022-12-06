@@ -180,6 +180,9 @@ impl gasket::runtime::Worker for Worker {
 
         log::info!("chain-sync intersection is {:?}", start);
 
+        // initialise chainsync by parsing initial rollback msg
+        chainsync.request_next().or_restart()?;
+
         self.chainsync = Some(chainsync);
 
         let blockfetch = blockfetch::Client::new(transport.channel3);
