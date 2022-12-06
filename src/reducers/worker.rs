@@ -1,4 +1,4 @@
-use pallas::ledger::traverse::MultiEraBlock;
+use pallas::{ledger::traverse::MultiEraBlock, network::miniprotocols::Point};
 
 use crate::{
     crosscut,
@@ -44,6 +44,7 @@ impl Worker {
 
     fn reduce_block<'b>(
         &mut self,
+        point: Point,
         block: &'b [u8],
         ctx: &model::BlockContext,
     ) -> Result<(), gasket::error::Error> {
@@ -73,6 +74,11 @@ impl Worker {
             self.ops_count.inc(1);
         }
 
+        // TODO merge related StorageActions in actions to reduce number of writes?
+
+        // Push this block and it's stage result (storage actions)
+        self.rollback_buffer.add_block(point, actions);
+
         self.output.send(gasket::messaging::Message::from(
             model::StorageAction::block_finished(&block),
         ))?;
@@ -93,8 +99,8 @@ impl gasket::runtime::Worker for Worker {
         let msg = self.input.recv_or_idle()?;
 
         match msg.payload {
-            model::EnrichedBlockPayload::RollForward(block, ctx) => {
-                self.reduce_block(&block, &ctx)?
+            model::EnrichedBlockPayload::RollForward(point, block, ctx) => {
+                self.reduce_block(point, &block, &ctx)?
             }
             model::EnrichedBlockPayload::RollBack(point) => {
                 log::warn!("rollback requested for {:?}", point);

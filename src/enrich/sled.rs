@@ -9,7 +9,6 @@ use log::warn;
 use pallas::{
     codec::minicbor,
     ledger::traverse::{Era, MultiEraBlock, MultiEraTx, OutputRef},
-    network::miniprotocols::Point,
 };
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::Deserialize;
@@ -261,7 +260,7 @@ impl gasket::runtime::Worker for Worker {
         let msg = self.input.recv_or_idle()?;
 
         match msg.payload {
-            model::RawBlockPayload::RollForward(cbor) => {
+            model::RawBlockPayload::RollForward(point, cbor) => {
                 let block = MultiEraBlock::decode(&cbor)
                     .map_err(crate::Error::cbor)
                     .apply_policy(&self.policy)
@@ -271,8 +270,6 @@ impl gasket::runtime::Worker for Worker {
                     Some(x) => x,
                     None => return Ok(gasket::runtime::WorkOutcome::Partial),
                 };
-
-                let point = Point::Specific(block.slot(), block.hash().to_vec());
 
                 let db = self.db.as_ref().unwrap();
 
@@ -292,11 +289,12 @@ impl gasket::runtime::Worker for Worker {
                 // rollback buffer
                 let enrich_effects = (consumed, produced);
 
-                self.rollback_buffer.add_block(point, enrich_effects);
+                self.rollback_buffer
+                    .add_block(point.clone(), enrich_effects);
 
                 // then we send the block down the pipeline
                 self.output
-                    .send(model::EnrichedBlockPayload::roll_forward(cbor, ctx))?;
+                    .send(model::EnrichedBlockPayload::roll_forward(point, cbor, ctx))?;
 
                 self.blocks_counter.inc(1);
             }

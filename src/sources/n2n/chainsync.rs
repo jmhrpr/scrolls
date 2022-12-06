@@ -211,7 +211,7 @@ impl gasket::runtime::Worker for Worker {
                 .or_restart()?;
 
             self.output
-                .send(model::RawBlockPayload::roll_forward(block))?;
+                .send(model::RawBlockPayload::roll_forward(point.clone(), block))?;
 
             self.block_count.inc(1);
 

@@ -202,8 +202,10 @@ impl gasket::runtime::Worker for Worker {
                 .remove(&point)
                 .expect("required block not found in memory");
 
-            self.output
-                .send(model::RawBlockPayload::roll_forward(block.into()))?;
+            self.output.send(model::RawBlockPayload::roll_forward(
+                point.clone(),
+                block.into(),
+            ))?;
 
             self.block_count.inc(1);
 
