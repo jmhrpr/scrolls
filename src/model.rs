@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use pallas::{
-    ledger::traverse::{Era, MultiEraBlock, MultiEraOutput, OutputRef},
+    ledger::traverse::{Era, MultiEraOutput, OutputRef},
     network::miniprotocols::Point,
 };
 
@@ -117,8 +117,6 @@ impl From<serde_json::Value> for Value {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum StorageAction {
-    // BlockStarting(Point),
-    // BlockFinished(Point),
     SetAdd(Set, Member),
     SetRemove(Set, Member),
 
@@ -131,8 +129,6 @@ pub enum StorageAction {
     KeyValueDelete(Key),
 
     PNCounter(Key, Delta),
-    // RollbackStarting(Point),
-    // RollbackFinished(Point),
 }
 
 // #[derive(Clone, Debug)]
@@ -144,14 +140,6 @@ pub enum StorageAction {
 // }
 
 impl StorageAction {
-    // pub fn block_starting(block: &MultiEraBlock) -> StorageAction {
-    //     let hash = block.hash();
-    //     let slot = block.slot();
-    //     let point = Point::Specific(slot, hash.to_vec());
-
-    //     StorageAction::BlockStarting(point)
-    // }
-
     pub fn set_add(prefix: Option<&str>, key: &str, member: String) -> StorageAction {
         let key = match prefix {
             Some(prefix) => format!("{}.{}", prefix, key),
@@ -199,11 +187,4 @@ impl StorageAction {
 
         StorageAction::SortedSetAdd(key, value.into(), score)
     }
-
-    // pub fn block_finished(block: &MultiEraBlock) -> StorageAction {
-    //     let hash = block.hash();
-    //     let slot = block.slot();
-    //     let point = Point::Specific(slot, hash.to_vec());
-    //     StorageAction::BlockFinished(point)
-    // }
 }

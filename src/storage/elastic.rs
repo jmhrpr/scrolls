@@ -13,7 +13,7 @@ use serde_json::{json, Value as JsonValue};
 
 use crate::{
     bootstrap, crosscut,
-    model::{self, StorageAction},
+    model::{self, StorageAction, StorageActionPayload},
     prelude::AppliesPolicy,
     Error,
 };
@@ -134,24 +134,20 @@ fn recv_batch(input: &mut InputPort) -> Result<Batch, gasket::error::Error> {
     loop {
         match input.recv_or_idle() {
             Ok(x) => match x.payload {
-                // TODO
-                // StorageAction::BlockStarting(_) => (),
-                // StorageAction::BlockFinished(_) => {
-                //     batch.block_end = Some(x.payload);
-                //     return Ok(batch);
-                // }
-                // _ => {
-                //     batch.items.push(x.payload);
-                // }
-                _ => todo!(),
+                StorageActionPayload::RollForward(_, actions) => {
+                    for action in actions {
+                        batch.items.push(action)
+                    }
+                }
+                StorageActionPayload::RollBack(_, _) => todo!(),
             },
             Err(gasket::error::Error::RecvIdle) => return Ok(batch),
             Err(err) => return Err(err),
         };
 
-        // if batch.items.len() >= BATCH_SIZE {
-        //     return Ok(batch);
-        // }
+        if batch.items.len() >= BATCH_SIZE {
+            return Ok(batch);
+        }
     }
 }
 
@@ -159,17 +155,12 @@ type ESResult = Result<Response, elasticsearch::Error>;
 
 async fn apply_command(cmd: StorageAction, client: &Elasticsearch) -> Option<ESResult> {
     match cmd {
-        // StorageAction::BlockStarting(_) => None,
         StorageAction::KeyValueSet(key, value) => client
             .index(elasticsearch::IndexParts::IndexId("scrolls", &key))
             .body::<JsonValue>(json!({ "key": &key, "value": JsonValue::from(value) }))
             .send()
             .await
             .into(),
-        // StorageAction::BlockFinished(_) => {
-        //     log::warn!("Elasticsearch storage doesn't support cursors ATM");
-        //     None
-        // }
         _ => todo!(),
     }
 }
