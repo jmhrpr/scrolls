@@ -32,7 +32,7 @@ impl Config {
     ) -> Bootstrapper {
         match self {
             Config::Skip(c) => Bootstrapper::Skip(c.bootstrapper()),
-            Config::Redis(c) => Bootstrapper::Redis(c.bootstrapper(chain, intersect)),
+            Config::Redis(c) => Bootstrapper::Redis(c.bootstrapper(policy)),
 
             #[cfg(feature = "elastic")]
             Config::Elastic(c) => Bootstrapper::Elastic(c.bootstrapper(chain, intersect, policy)),

@@ -95,10 +95,10 @@ impl<T> RollbackBuffer<T> {
 
     /// Return an vector of the blocks which have been processed since the
     /// given point and remove those blocks from the buffer (most recent first)
-    pub fn rollback_to_point(&mut self, point: &Point) -> RollbackResult<T> {
+    pub fn rollback_to_point(&mut self, point: &Point) -> Result<Vec<PointWithResult<T>>, Point> {
         match self.position(point) {
-            Some(p) => RollbackResult::PointFound(self.blocks.drain(..p).collect()),
-            None => RollbackResult::PointNotFound,
+            Some(p) => Ok(self.blocks.drain(..p).collect()),
+            None => Err(point.clone()),
         }
     }
 }
@@ -159,8 +159,8 @@ mod tests {
         let rollback_point = dummy_point(3);
 
         let to_undo = match buffer.rollback_to_point(&rollback_point) {
-            RollbackResult::PointFound(xs) => xs,
-            RollbackResult::PointNotFound => panic!("Point not found"),
+            Ok(ps) => ps,
+            Err(_) => panic!("Point not found"),
         };
 
         assert_eq!(to_undo.len(), 2);
@@ -182,6 +182,6 @@ mod tests {
         let res = buffer.rollback_to_point(&rollback_point);
 
         assert_eq!(buffer.len(), 6);
-        assert!(matches!(res, RollbackResult::PointNotFound))
+        assert!(matches!(res, Err(_)))
     }
 }

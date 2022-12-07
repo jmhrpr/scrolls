@@ -18,7 +18,7 @@ use crate::{
     bootstrap, crosscut,
     model::{self, BlockContext},
     prelude::AppliesPolicy,
-    rollback::buffer::{RollbackBuffer, RollbackResult},
+    rollback::buffer::RollbackBuffer,
 };
 
 type InputPort = gasket::messaging::TwoPhaseInputPort<model::RawBlockPayload>;
@@ -292,7 +292,7 @@ impl gasket::runtime::Worker for Worker {
                 self.rollback_buffer
                     .add_block(point.clone(), enrich_effects);
 
-                // then we send the block down the pipeline
+                // send the block down the pipeline
                 self.output
                     .send(model::EnrichedBlockPayload::roll_forward(point, cbor, ctx))?;
 
@@ -300,9 +300,17 @@ impl gasket::runtime::Worker for Worker {
             }
             model::RawBlockPayload::RollBack(rb_point) => {
                 // for all the blocks which succeeded the rollback point, retrieve the consumed/produced utxos
-                let points_and_results = match self.rollback_buffer.rollback_to_point(&rb_point) {
-                    RollbackResult::PointFound(ps) => ps,
-                    RollbackResult::PointNotFound => panic!(), // TODO
+                let points_and_results = self
+                    .rollback_buffer
+                    .rollback_to_point(&rb_point)
+                    .map_err(crate::Error::rollback)
+                    .apply_policy(&self.policy)
+                    .or_panic()?;
+
+                // apply the error policy for unhandleable rollbacks
+                let points_and_results = match points_and_results {
+                    Some(x) => x,
+                    None => return Ok(gasket::runtime::WorkOutcome::Partial),
                 };
 
                 let consumed: Vec<ConsumedUtxo> = points_and_results

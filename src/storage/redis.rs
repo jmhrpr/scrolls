@@ -17,7 +17,8 @@ use crate::{
         StorageAction::{self, *},
         StorageActionPayload,
     },
-    rollback::buffer::{RollbackBuffer, RollbackResult},
+    prelude::AppliesPolicy,
+    rollback::buffer::RollbackBuffer,
 };
 
 type InputPort = gasket::messaging::TwoPhaseInputPort<model::StorageActionPayload>;
@@ -115,13 +116,10 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn bootstrapper(
-        self,
-        _chain: &crosscut::ChainWellKnownInfo,
-        _intersect: &crosscut::IntersectConfig,
-    ) -> Bootstrapper {
+    pub fn bootstrapper(self, policy: &crosscut::policies::RuntimePolicy) -> Bootstrapper {
         Bootstrapper {
             config: self,
+            policy: policy.clone(),
             input: Default::default(),
         }
     }
@@ -133,6 +131,7 @@ impl Config {
 
 pub struct Bootstrapper {
     config: Config,
+    policy: crosscut::policies::RuntimePolicy,
     input: InputPort,
 }
 
@@ -150,6 +149,7 @@ impl Bootstrapper {
     pub fn spawn_stages(self, pipeline: &mut bootstrap::Pipeline) {
         let worker = Worker {
             config: self.config.clone(),
+            policy: self.policy.clone(),
             connection: None,
             input: self.input,
             ops_count: Default::default(),
@@ -200,6 +200,7 @@ impl Cursor {
 
 pub struct Worker {
     config: Config,
+    policy: crosscut::policies::RuntimePolicy,
     connection: Option<redis::Connection>,
     ops_count: gasket::metrics::Counter,
     input: InputPort,
@@ -466,9 +467,17 @@ impl gasket::runtime::Worker for Worker {
 
                 // Fetch the rollbacked blocks and the corresponding storage actions and associated
                 // responses from Redis.
-                let points_and_results = match self.rollback_buffer.rollback_to_point(&point) {
-                    RollbackResult::PointFound(ps) => ps,
-                    RollbackResult::PointNotFound => panic!(), // TODO
+                let points_and_results = self
+                    .rollback_buffer
+                    .rollback_to_point(&point)
+                    .map_err(crate::Error::rollback)
+                    .apply_policy(&self.policy)
+                    .or_panic()?;
+
+                // apply the error policy for unhandleable rollbacks
+                let points_and_results = match points_and_results {
+                    Some(x) => x,
+                    None => return Ok(gasket::runtime::WorkOutcome::Partial),
                 };
 
                 trace!(

@@ -10,6 +10,8 @@ pub mod storage;
 
 use std::fmt::Display;
 
+use crosscut::PointArg;
+use pallas::network::miniprotocols::Point;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -46,6 +48,11 @@ pub enum Error {
 
     #[error("{0}")]
     Custom(String),
+
+    #[error(
+        "could not undo effects of rollbacked blocks as point {0} not found in rollback buffer"
+    )]
+    RollbackOutOfRange(String),
 }
 
 impl Error {
@@ -87,6 +94,10 @@ impl Error {
 
     pub fn custom(error: Box<dyn std::error::Error>) -> Error {
         Error::Custom(format!("{}", error))
+    }
+
+    pub fn rollback(point: Point) -> Error {
+        Error::RollbackOutOfRange(PointArg::from(point).to_string())
     }
 }
 

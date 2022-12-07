@@ -4,7 +4,7 @@ use crate::{
     crosscut,
     model::{self, StorageAction, StorageActionPayload},
     prelude::*,
-    rollback::buffer::{RollbackBuffer, RollbackResult},
+    rollback::buffer::RollbackBuffer,
 };
 
 use super::Reducer;
@@ -94,8 +94,8 @@ impl Worker {
         // fetch the rollbacked points and the associated storage actions from the
         // stage's rollback buffer
         let points_and_results = match self.rollback_buffer.rollback_to_point(&point) {
-            RollbackResult::PointFound(ps) => ps,
-            RollbackResult::PointNotFound => panic!(), // TODO
+            Ok(ps) => ps,
+            Err(_) => panic!("unhandleable rollback"), // TODO
         };
 
         // flatten all the storage actions executed by each rollbacked block.
