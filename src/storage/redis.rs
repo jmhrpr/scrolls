@@ -1,14 +1,12 @@
-use std::{
-    str::{from_utf8, FromStr},
-    time::Duration,
-};
+use std::{str::FromStr, time::Duration};
 
 use gasket::{
     error::AsWorkError,
     runtime::{spawn_stage, WorkOutcome},
 };
 
-use log::warn;
+use log::{debug, trace};
+use pallas::network::miniprotocols::Point;
 use redis::{Commands, ToRedisArgs, Value::*};
 use serde::Deserialize;
 
@@ -19,7 +17,7 @@ use crate::{
         StorageAction::{self, *},
         StorageActionPayload,
     },
-    rollback::buffer::RollbackBuffer,
+    rollback::buffer::{RollbackBuffer, RollbackResult},
 };
 
 type InputPort = gasket::messaging::TwoPhaseInputPort<model::StorageActionPayload>;
@@ -38,19 +36,7 @@ impl ToRedisArgs for model::Value {
     }
 }
 
-// SetAdd(K, X) + bool for if the value already existed or not = SetRem(K, X) if the value did not exist or nothing if it already existed
-// SetRemove(K, X) + bool for if the value existed or not = SetAdd(K, X) if the value existed or nothing if it didn't
-
-// SortedSetIncr(K, X, S) + nothing = SortedSetIncr(K, X, -1 * S) (0 score entries should be removed after)
-// SortedSetAdd(K, X, S) + nothing (don't allow overwrites) = SortedSetRem(K, X)
-// SortedSetRem(K, X) = not supported
-
-// KeyValueSet(K, X) + Option<string/value which was overwritten> => KeyValueDelete(K, X) if None (it didnt exist before), or KeyValueSet(K, Y) if Some(Y) (it existed before with value Y)
-// KeyValueDelete(K) + Option<string/value of the deleted key> => Nothing if None (nothing was deleted) or KeyValueSet(K, Y) if Some(Y) was the value of the deleted key
-
-// PNCounter(K, X, D) + nothing => PNCounter(K, X, -1 * D)
-
-// Inverse Storage Action by taking StorageAction and its response
+// Inverse Storage Action by taking StorageAction and its response TODO
 
 // impl StorageActionResult {
 //     pub fn from_redis_value(action: StorageAction, value: redis::Value) -> StorageActionResult {
@@ -116,7 +102,7 @@ pub fn inverse_action(action: StorageAction, value: redis::Value) -> Option<Stor
         }
 
         (action, result) => unreachable!(
-            "tried to reverse action {:?} and result {:?}",
+            "couldn't reverse action {:?} with result {:?}",
             action, result
         ),
     }
@@ -208,6 +194,8 @@ impl Cursor {
 
         Ok(point)
     }
+
+    // TODO set cursor func
 }
 
 pub struct Worker {
@@ -222,6 +210,74 @@ pub struct Worker {
 type StorageResult = Vec<(StorageAction, redis::Value)>;
 
 impl Worker {
+    fn block_starting(&mut self) -> Result<(), gasket::error::Error> {
+        // start redis transaction (block starting)
+        redis::cmd("MULTI")
+            .query(self.connection.as_mut().unwrap())
+            .or_restart()?;
+
+        Ok(())
+    }
+
+    fn block_finished(&mut self, point: &Point) -> Result<Vec<redis::Value>, gasket::error::Error> {
+        // update cursor
+        let cursor_str = crosscut::PointArg::from(point.clone()).to_string();
+
+        self.connection
+            .as_mut()
+            .unwrap()
+            .getset(self.config.cursor_key(), &cursor_str)
+            .or_restart()?;
+
+        log::info!(
+            "new cursor saved to redis {} {}",
+            &self.config.cursor_key(),
+            &cursor_str
+        );
+
+        // end redis transaction, store responses
+        let responses: Vec<redis::Value> = redis::cmd("EXEC")
+            .query(self.connection.as_mut().unwrap())
+            .or_restart()?;
+
+        // return redis query responses
+        Ok(responses)
+    }
+
+    fn rollback_starting(&mut self) -> Result<(), gasket::error::Error> {
+        // start redis transaction to contain inverse actions for all rollbacked
+        // blocks
+        redis::cmd("MULTI")
+            .query(self.connection.as_mut().unwrap())
+            .or_restart()?;
+
+        Ok(())
+    }
+
+    fn rollback_finished(&mut self, point: &Point) -> Result<(), gasket::error::Error> {
+        // set cursor back to the rollback point
+        let cursor_str = crosscut::PointArg::from(point.clone()).to_string();
+
+        self.connection
+            .as_mut()
+            .unwrap()
+            .getset(self.config.cursor_key(), &cursor_str)
+            .or_restart()?;
+
+        log::info!(
+            "rollbacked cursor saved to redis {} {}",
+            &self.config.cursor_key(),
+            &cursor_str
+        );
+
+        // end transaction (end rollback)
+        redis::cmd("EXEC")
+            .query(self.connection.as_mut().unwrap())
+            .or_restart()?;
+
+        Ok(())
+    }
+
     /// Given a list of desired storage actions, perform the appropriate Redis
     /// command.
     fn apply_actions(&mut self, actions: &Vec<StorageAction>) -> Result<(), gasket::error::Error> {
@@ -330,22 +386,6 @@ impl Worker {
                         .or_restart()?;
                 }
 
-                // // Rollback-only actions
-                // StorageAction::RollbackStarting(_) => {
-                //     // start redis transaction
-                //     redis::cmd("MULTI")
-                //         .query(self.connection.as_mut().unwrap())
-                //         .or_restart()?;
-                // }
-                // StorageAction::RollbackFinished(_point) => {
-                //     // TODO set cursor to the preceeding block
-
-                //     // end redis transaction
-                //     redis::cmd("EXEC")
-                //         .query(self.connection.as_mut().unwrap())
-                //         .or_restart()?;
-                // }
-
                 // Should only be used for undoing blocks because we can't rollback
                 // the action due to not having information on the `score`.
                 StorageAction::SortedSetRem(key, value) => {
@@ -376,69 +416,97 @@ impl gasket::runtime::Worker for Worker {
         let msg = self.input.recv_or_idle()?;
 
         match msg.payload {
+            // TODO block cbor? height?
             StorageActionPayload::RollForward(point, actions) => {
-                // start transaction
-                // apply all reducer actions
-                // potentially separately set cursor
-                // end transaction get list of returned responses
-                // zip actions to responses, modifying the responses into StorageActionResults
-
-                // === BLOCK STARTING ===
-
-                // start redis transaction (block starting)
-                redis::cmd("MULTI")
-                    .query(self.connection.as_mut().unwrap())
-                    .or_restart()?;
-
-                // === APPLY REDUCER STORAGE ACTIONS ===
-
-                // execute the actions
-                self.apply_actions(&actions)?;
-
-                // === BLOCK FINISHED ===
-
-                // block finished (TODO function)
-                let cursor_str = crosscut::PointArg::from(point.clone()).to_string();
-
-                self.connection
-                    .as_mut()
-                    .unwrap()
-                    .getset(self.config.cursor_key(), &cursor_str)
-                    .or_restart()?;
-
-                log::info!(
-                    "new cursor saved to redis {} {}",
-                    &self.config.cursor_key(),
-                    &cursor_str
+                debug!(
+                    "performing {} storage actions to process block {:?}",
+                    actions.len(),
+                    point
                 );
 
-                // end redis transaction
-                let responses: Vec<redis::Value> = redis::cmd("EXEC")
-                    .query(self.connection.as_mut().unwrap())
-                    .or_restart()?;
+                // block starting (start redis transaction)
+                self.block_starting()?;
 
-                // warn!("{} actions {} responses", actions.len(), responses.len());
+                // execute the actions from the reducer stage
+                self.apply_actions(&actions)?;
 
-                // warn!("exec return {:?}", responses);
+                // block finished (update cursor, end redis transaction)
+                let responses = self.block_finished(&point)?;
 
+                // update the storage operation counter
+                self.ops_count.inc(actions.len() as u64);
+
+                // pair the storage actions with the corresponding value which
+                // was returned from redis for each action
                 let actions_and_responses: Vec<(StorageAction, redis::Value)> =
                     actions.into_iter().zip(responses).collect();
 
+                trace!(
+                    "{} actions/responses: {:?}",
+                    actions_and_responses.len(),
+                    actions_and_responses
+                );
+
+                // push the point, the storage actions and their corresponding
+                // return values onto the front of the rollback buffer
                 self.rollback_buffer.add_block(point, actions_and_responses);
 
-                warn!("{:?}", self.rollback_buffer)
-
-                // warn!("anr {:?} anr len {}", actions_and_responses, actions_and_responses.len());
+                trace!(
+                    "redis rollback buffer (len {}): {:?}",
+                    self.rollback_buffer.len(),
+                    self.rollback_buffer
+                );
             }
             StorageActionPayload::RollBack(point, _) => {
-                warn!("rollback requested to {:?}", point)
-                // TODO pull the actions and associated StorageActionResults from rollback buffer
-                // in a transaction undo each of the actions and set the cursor to the rollback point
+                trace!(
+                    "rollback buffer before: {} {:?}",
+                    self.rollback_buffer.len(),
+                    self.rollback_buffer
+                );
+
+                // Fetch the rollbacked blocks and the corresponding storage actions and associated
+                // responses from Redis.
+                let points_and_results = match self.rollback_buffer.rollback_to_point(&point) {
+                    RollbackResult::PointFound(ps) => ps,
+                    RollbackResult::PointNotFound => panic!(), // TODO
+                };
+
+                trace!(
+                    "rollback buffer after: {} {:?}",
+                    self.rollback_buffer.len(),
+                    self.rollback_buffer
+                );
+
+                // Create a list of inverse actions, each of which reverses a storage action
+                // that occured as a result of a block which has been rollbacked. The first
+                // inverse action in the vec corresponds to the most recently applied action,
+                // that is the last action performed by the most recent block.
+                let inverse_actions: Vec<StorageAction> = points_and_results
+                    .into_iter()
+                    .flat_map(|point| point.result.into_iter().rev())
+                    .flat_map(|(a, r)| inverse_action(a, r))
+                    .collect();
+
+                debug!(
+                    "performing {} inverse actions to rollback to point {:?}",
+                    inverse_actions.len(),
+                    point
+                );
+
+                // start rollback (start redis transaction)
+                self.rollback_starting()?;
+
+                // apply all the inverse actions
+                self.apply_actions(&inverse_actions)?;
+
+                // finish rollback (set cursor to rollback point, end redis transaction)
+                self.rollback_finished(&point)?;
+
+                // count the number of storage actions which were performed
+                self.ops_count.inc(inverse_actions.len() as u64);
             }
         }
 
-        // TODO fix
-        self.ops_count.inc(1);
         self.input.commit();
 
         Ok(WorkOutcome::Partial)
