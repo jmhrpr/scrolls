@@ -1,9 +1,9 @@
 use pallas::ledger::traverse::MultiEraBlock;
 use serde::Deserialize;
 
+use crate::crosscut;
 use crate::crosscut::epochs::block_epoch;
 use crate::model::{StorageAction, Value};
-use crate::crosscut;
 
 #[derive(Deserialize)]
 pub struct Config {

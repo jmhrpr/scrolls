@@ -29,12 +29,8 @@ impl Reducer {
 
         let value = pool.to_string();
 
-        let action = StorageAction::last_write_wins(
-            self.config.key_prefix.as_deref(),
-            &key,
-            value,
-            slot,
-        );
+        let action =
+            StorageAction::last_write_wins(self.config.key_prefix.as_deref(), &key, value, slot);
 
         Ok(actions.push(action))
     }
