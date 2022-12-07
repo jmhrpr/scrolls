@@ -139,7 +139,9 @@ fn recv_batch(input: &mut InputPort) -> Result<Batch, gasket::error::Error> {
                         batch.items.push(action)
                     }
                 }
-                StorageActionPayload::RollBack(_, _) => todo!(),
+                StorageActionPayload::RollBack(_) => {
+                    todo!("rollback handling not implemented for elastic")
+                }
             },
             Err(gasket::error::Error::RecvIdle) => return Ok(batch),
             Err(err) => return Err(err),

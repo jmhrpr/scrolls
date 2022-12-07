@@ -134,16 +134,11 @@ impl gasket::runtime::Worker for Worker {
                 let mut last_point = self.last_point.lock().unwrap();
                 *last_point = Some(crosscut::PointArg::from(point));
             }
-            StorageActionPayload::RollBack(point, actions) => {
-                warn!(
-                    "rollback requested for {:?} concerning {} actions",
-                    point,
-                    actions.len()
-                );
+            StorageActionPayload::RollBack(point) => {
+                warn!("rollback to {:?} requested", point);
             }
         }
 
-        self.ops_count.inc(1);
         self.input.commit();
         Ok(WorkOutcome::Partial)
     }

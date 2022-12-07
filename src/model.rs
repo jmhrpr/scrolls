@@ -78,7 +78,7 @@ impl EnrichedBlockPayload {
 #[derive(Debug, Clone)]
 pub enum StorageActionPayload {
     RollForward(Point, Vec<StorageAction>),
-    RollBack(Point, Vec<StorageAction>),
+    RollBack(Point),
 }
 
 pub type Set = String;

@@ -2,9 +2,10 @@ use pallas::{ledger::traverse::MultiEraBlock, network::miniprotocols::Point};
 
 use crate::{
     crosscut,
-    model::{self, StorageAction, StorageActionPayload},
+    model::{self, StorageActionPayload},
     prelude::*,
-    rollback::buffer::RollbackBuffer,
+    // rollback::buffer::RollbackBuffer,
+    // model::StorageAction,
 };
 
 use super::Reducer;
@@ -12,13 +13,13 @@ use super::Reducer;
 type InputPort = gasket::messaging::TwoPhaseInputPort<model::EnrichedBlockPayload>;
 type OutputPort = gasket::messaging::OutputPort<model::StorageActionPayload>;
 
-type ReducersResult = Vec<StorageAction>;
+// type ReducersResult = Vec<StorageAction>;
 
 pub struct Worker {
     input: InputPort,
     output: OutputPort,
     reducers: Vec<Reducer>,
-    rollback_buffer: RollbackBuffer<ReducersResult>,
+    // rollback_buffer: RollbackBuffer<ReducersResult>,
     policy: crosscut::policies::RuntimePolicy,
     ops_count: gasket::metrics::Counter,
     last_block: gasket::metrics::Gauge,
@@ -35,7 +36,7 @@ impl Worker {
             reducers,
             input,
             output,
-            rollback_buffer: Default::default(),
+            // rollback_buffer: Default::default(),
             policy,
             ops_count: Default::default(),
             last_block: Default::default(),
@@ -78,8 +79,8 @@ impl Worker {
 
         // Push this block and it's stage result (storage actions) to the front
         // of the stage's rollback buffer
-        self.rollback_buffer
-            .add_block(point.clone(), actions.clone());
+        // self.rollback_buffer
+        //     .add_block(point.clone(), actions.clone());
 
         self.output.send(gasket::messaging::Message::from(
             StorageActionPayload::RollForward(point, actions),
@@ -93,23 +94,27 @@ impl Worker {
     fn undo_blocks<'b>(&mut self, point: Point) -> Result<(), gasket::error::Error> {
         // fetch the rollbacked points and the associated storage actions from the
         // stage's rollback buffer
-        let points_and_results = match self.rollback_buffer.rollback_to_point(&point) {
-            Ok(ps) => ps,
-            Err(_) => panic!("unhandleable rollback"), // TODO
-        };
+        // let points_and_results = match self.rollback_buffer.rollback_to_point(&point) {
+        //     Ok(ps) => ps,
+        //     Err(_) => panic!("unhandleable rollback"), // TODO
+        // };
 
         // flatten all the storage actions executed by each rollbacked block.
         // this is sorted with most recently executed action to oldest (start:
         // last action of most recent block first, last: first action of oldest block).
-        let actions: Vec<StorageAction> = points_and_results
-            .into_iter()
-            .flat_map(|point| point.result.into_iter().rev())
-            .collect();
+        // let actions: Vec<StorageAction> = points_and_results
+        //     .into_iter()
+        //     .flat_map(|point| point.result.into_iter().rev())
+        //     .collect();
 
         // send the storage actions down the pipeline so we can reverse the
         // changes they made to the storage
+        // self.output.send(gasket::messaging::Message::from(
+        //     StorageActionPayload::RollBack(point, actions),
+        // ))?;
+
         self.output.send(gasket::messaging::Message::from(
-            StorageActionPayload::RollBack(point, actions),
+            StorageActionPayload::RollBack(point),
         ))?;
 
         Ok(())

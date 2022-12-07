@@ -458,7 +458,7 @@ impl gasket::runtime::Worker for Worker {
                     self.rollback_buffer
                 );
             }
-            StorageActionPayload::RollBack(point, _) => {
+            StorageActionPayload::RollBack(point) => {
                 trace!(
                     "rollback buffer before: {} {:?}",
                     self.rollback_buffer.len(),
