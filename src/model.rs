@@ -120,7 +120,7 @@ pub enum StorageAction {
     SetAdd(Set, Member),
     SetRemove(Set, Member),
 
-    SortedSetIncr(Set, Member, Delta),
+    SortedSetIncr(Set, Value, Delta),
 
     SortedSetAdd(Key, Value, Score),
     SortedSetRem(Key, Value),
