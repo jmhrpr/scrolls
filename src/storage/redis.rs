@@ -1,4 +1,7 @@
-use std::{str::FromStr, time::Duration};
+use std::{
+    str::{from_utf8, FromStr},
+    time::Duration,
+};
 
 use gasket::{
     error::AsWorkError,
@@ -74,7 +77,18 @@ pub fn inverse_action(action: StorageAction, value: redis::Value) -> Option<Stor
         (SetRemove(k, m), Int(1)) => Some(SetAdd(k, m)),
 
         // Decrement the sorted set member by the same amount it was incremented.
-        (SortedSetIncr(k, m, d), _) => Some(SortedSetIncr(k, m, (-1) * d)),
+        // If the value after the incremenet is equal to the incremement amount
+        // then we know it was zero before the command, so we delete the key in
+        // that case.
+        (SortedSetIncr(k, m, d), Data(r)) => {
+            let return_int = from_utf8(&r).unwrap().parse::<i64>().unwrap();
+
+            if d == return_int {
+                Some(SortedSetRem(k, m.into()))
+            } else {
+                Some(SortedSetIncr(k, m, (-1) * d))
+            }
+        }
 
         // We do not allow overwrites in sorted set adds, so a return of 1 means
         // the member was added and a return of 0 means it was not added.
@@ -95,7 +109,15 @@ pub fn inverse_action(action: StorageAction, value: redis::Value) -> Option<Stor
         // `K` to `B`.
         (KeyValueDelete(k), Data(bs)) => Some(KeyValueSet(k, bs.into())),
 
-        // Decrement the counter by the amount be incremented it.
+        // Decrement the counter by the amount be incremented it. If the return
+        // value (the value of the key after the increment was applied) is equal
+        // to the increment amount then the value must have been 0/did not exist
+        // before, so we delete the key. In general, 0 value and not existing
+        // should be treated the same. That is, if after decrementing the counter
+        // it will be equal to 0 then we instead just delete the key.
+        (StorageAction::PNCounter(k, d), Int(r)) if (d == r) => {
+            Some(StorageAction::KeyValueDelete(k))
+        }
         (StorageAction::PNCounter(k, d), _) => Some(StorageAction::PNCounter(k, (-1) * d)),
 
         (StorageAction::SortedSetRem(_, _), _) => {
@@ -316,7 +338,7 @@ impl Worker {
                 // treat 0 as the same as the value entry not existing (and remove them).
                 StorageAction::SortedSetIncr(key, value, delta) => {
                     log::debug!(
-                        "sorted set incr [{}], value [{}], delta [{}]",
+                        "sorted set incr [{}], value [{:?}], delta [{}]",
                         key,
                         value,
                         delta
