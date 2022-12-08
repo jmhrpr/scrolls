@@ -6,6 +6,7 @@ use crate::{bootstrap, crosscut, model, storage};
 #[cfg(target_family = "unix")]
 pub mod n2c;
 
+pub mod emulate;
 pub mod n2n;
 pub mod utils;
 
@@ -16,6 +17,8 @@ pub enum Config {
 
     #[cfg(target_family = "unix")]
     N2C(n2c::Config),
+
+    Emulate(emulate::Config),
 }
 
 impl Config {
@@ -29,6 +32,7 @@ impl Config {
         match self {
             Config::N2N(c) => Bootstrapper::N2N(c.bootstrapper(chain, intersect, finalize, policy)),
             Config::N2C(c) => Bootstrapper::N2C(c.bootstrapper(chain, intersect, finalize, policy)),
+            Config::Emulate(c) => Bootstrapper::Emulate(c.bootstrapper()),
         }
     }
 }
@@ -36,6 +40,7 @@ impl Config {
 pub enum Bootstrapper {
     N2N(n2n::Bootstrapper),
     N2C(n2c::Bootstrapper),
+    Emulate(emulate::Bootstrapper),
 }
 
 impl Bootstrapper {
@@ -43,6 +48,7 @@ impl Bootstrapper {
         match self {
             Bootstrapper::N2N(p) => p.borrow_output_port(),
             Bootstrapper::N2C(p) => p.borrow_output_port(),
+            Bootstrapper::Emulate(p) => p.borrow_output_port(),
         }
     }
 
@@ -50,6 +56,7 @@ impl Bootstrapper {
         match self {
             Bootstrapper::N2N(p) => p.spawn_stages(pipeline, cursor),
             Bootstrapper::N2C(p) => p.spawn_stages(pipeline, cursor),
+            Bootstrapper::Emulate(p) => p.spawn_stages(pipeline),
         }
     }
 }

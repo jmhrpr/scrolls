@@ -1,24 +1,47 @@
 [source]
-type = "N2N"
-address = "relays-new.cardano-mainnet.iohk.io:3001"
+type = "Emulate"
+instructions = "FFFB1"
+
+[enrich]
+type = "Sled"
+db_path = "/tmp/sled_db"
 
 [[reducers]]
-type = "UtxoByNft"
+type = "UtxoByAddress"
+key_prefix = "c1"
+
+[[reducers]]
+type = "TxByHash"
 key_prefix = "c2"
+
+[reducers.policy]
+missing_data = "Warn"
+cbor_errors = "Warn"
+ledger_errors = "Warn"
+any_error = "Warn"
+
+[[reducers]]
+type = "TxCountByAddress"
+key_prefix = "c3"
+
+[[reducers]]
+type = "AddressByTxo"
+key_prefix = "c4"
+
+[[reducers]]
+type = "AssetHoldersByAsset"
+key_prefix = "c5"
 
 [storage]
 type = "Redis"
-connection_params = "redis://127.0.0.1:6379"
+connection_params = "redis://localhost:6379"
 
 [intersect]
 type = "Point"
-value = [
-    75763928,
-    "081ede3bfac7d736625db5d4ad6c8024b46c8630329bf9155930bc3f2f511f5c",
-]
-
-[chain]
-type = "Mainnet"
+value = [12414562, "361f8e718a7dfb07a9a2a8486a94c7a09777086097fc007ef538fb90ef645690"]
 
 [policy]
 missing_data = "Skip"
+
+[chain]
+type = "PreProd"
