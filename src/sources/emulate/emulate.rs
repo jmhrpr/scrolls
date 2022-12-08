@@ -132,8 +132,6 @@ impl gasket::runtime::Worker for Worker {
                     ))?;
                 }
                 Instruction::Backwards(n) => {
-                    debug!("block_ptr = {block_ptr}, n = {}", *n);
-
                     let block_bytes = self.blocks.get(block_ptr - (*n as usize + 1)).unwrap();
 
                     let block = MultiEraBlock::decode(&block_bytes).unwrap();

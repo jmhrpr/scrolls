@@ -325,8 +325,6 @@ impl gasket::runtime::Worker for Worker {
                     .flat_map(|(_, p)| p)
                     .collect();
 
-                // let to_undo: Vec<Point> = points_and_results.into_iter().map(|p| p.point).collect(); TODO
-
                 let db = self.db.as_ref().unwrap();
 
                 let mut batch = sled::Batch::default();

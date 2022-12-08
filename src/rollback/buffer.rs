@@ -19,8 +19,7 @@ const MAX_BUFFER_LEN: usize = 32;
 /// but achieves different results. The Pallas chainsync rollback buffer pops
 /// the _oldest_ points from the buffer once the buffer size reaches a
 /// configurable size min-depth, where as this buffer is used to pop the most
-/// recent blocks when a rollback instruction is received. This buffer also
-/// carries the bytes for each block.
+/// recent blocks when a rollback instruction is received.
 #[derive(Debug)]
 pub struct RollbackBuffer<T> {
     blocks: VecDeque<PointWithResult<T>>,

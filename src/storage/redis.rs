@@ -40,7 +40,7 @@ impl ToRedisArgs for model::Value {
     }
 }
 
-// Inverse Storage Action by taking StorageAction and its response TODO
+// TODO Translate Redis return values into more generic StorageActionResults
 
 // impl StorageActionResult {
 //     pub fn from_redis_value(action: StorageAction, value: redis::Value) -> StorageActionResult {
@@ -399,6 +399,7 @@ impl Worker {
                         .or_restart()?;
                 }
 
+                // TODO garbage collect when returned/new value is 0 (same for ZINCR)
                 StorageAction::PNCounter(key, delta) => {
                     log::debug!("increasing counter [{}], by [{}]", key, delta);
 
