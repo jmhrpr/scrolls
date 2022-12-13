@@ -1,4 +1,3 @@
-use log::debug;
 use pallas::ledger::traverse::{Asset, MultiEraOutput};
 use pallas::ledger::traverse::{MultiEraBlock, OutputRef};
 use serde::Deserialize;
@@ -111,7 +110,6 @@ impl Reducer {
             .or_panic()?;
 
         for asset in tx_output.assets() {
-            debug!("here2");
             match asset {
                 Asset::NativeAsset(policy_id, _, quantity) => {
                     if self.is_policy_id_accepted(&policy_id) {
@@ -141,8 +139,6 @@ impl Reducer {
         for tx in block.txs().into_iter() {
             if filter_matches!(self, block, &tx, ctx) {
                 let epoch_no = block_epoch(&self.chain, block);
-
-                debug!("here");
 
                 for consumed in tx.consumes().iter().map(|i| i.output_ref()) {
                     self.process_consumed_txo(&ctx, &consumed, epoch_no, actions)?;

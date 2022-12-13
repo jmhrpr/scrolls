@@ -5,7 +5,7 @@ use gasket::{
     runtime::{spawn_stage, WorkOutcome},
 };
 
-use log::warn;
+use log::{debug, warn};
 use pallas::{
     codec::minicbor,
     ledger::traverse::{Era, MultiEraBlock, MultiEraTx, OutputRef},
@@ -278,11 +278,21 @@ impl gasket::runtime::Worker for Worker {
                 // first we insert new utxo produced in this block
                 let produced = self.insert_produced_utxos(db, &txs).or_restart()?;
 
+                debug!("inserted produced utxos into enrich db: {:?}", produced);
+
                 // then we fetch referenced utxo in this block
                 let ctx = self.par_fetch_referenced_utxos(db, &txs).or_restart()?;
 
                 // and finally we remove utxos consumed by the block
                 let consumed = self.remove_consumed_utxos(db, &txs).or_restart()?;
+
+                debug!(
+                    "removed consumed utxos from enrich db: {:?}",
+                    consumed
+                        .iter()
+                        .map(|x| x.0.clone())
+                        .collect::<Vec<String>>()
+                );
 
                 // then we collect information about which utxos were added to
                 // or removed from the db for this block and add it to the
@@ -339,6 +349,14 @@ impl gasket::runtime::Worker for Worker {
                 // remove all the utxos which were produced by the blocks.
 
                 // re-insert all the UTxOs that the rollback blocks consumed
+                debug!(
+                    "re-inserting consumed utxos into enrich db: {:?}",
+                    consumed
+                        .iter()
+                        .map(|x| x.0.clone())
+                        .collect::<Vec<String>>()
+                );
+
                 for utxo in consumed {
                     let key: IVec = utxo.0.as_bytes().into();
                     let value: IVec = utxo.1.try_into().or_restart()?;
@@ -347,6 +365,11 @@ impl gasket::runtime::Worker for Worker {
                 }
 
                 // remove all the UTxOs that the rollbacked blocks produced
+                debug!(
+                    "removing previously inserted produced utxos from enrich db: {:?}",
+                    produced
+                );
+
                 for utxo in produced {
                     let key: IVec = utxo.as_bytes().into();
 

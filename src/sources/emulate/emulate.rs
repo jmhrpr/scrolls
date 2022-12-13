@@ -95,9 +95,13 @@ impl gasket::runtime::Worker for Worker {
     fn bootstrap(&mut self) -> Result<(), gasket::error::Error> {
         let mut blocks_bytes = Vec::new();
 
-        for path in fs::read_dir("../../src/sources/emulate/block_data/").unwrap() {
-            let path = path.unwrap();
+        let mut paths: Vec<_> = fs::read_dir("../../src/sources/emulate/block_data/").unwrap()
+            .map(|r| r.unwrap())
+            .collect();
 
+        paths.sort_by_key(|dir| dir.path());
+
+        for path in paths {
             if path.file_type().unwrap().is_file() {
                 let contents = hex::decode(fs::read(path.path()).unwrap()).unwrap();
 
